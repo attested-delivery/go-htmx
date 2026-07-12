@@ -1,0 +1,48 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - depguard
+  settings:
+    depguard:
+      rules:
+        # AD-6 import boundary (see internal/doc.go): platform/web code is
+        # infrastructure and must stay leaf-level — it must never import a
+        # feature package. There are no internal/<feature>/* packages yet
+        # (the first lands with Story #4's example feature slice), so this
+        # rule has nothing to catch today; it exists so the first feature
+        # package that violates the boundary fails lint immediately rather
+        # than being caught later in review.
+        platform-no-feature-imports:
+          files:
+            - "**/internal/platform/**/*.go"
+            - "**/internal/web/**/*.go"
+          deny:
+            - pkg: "github.com/attested-delivery/go-htmx/internal/feature"
+              desc: "platform and web packages must not import feature packages — see internal/doc.go's import boundary"
+  exclusions:
+    rules:
+      # Generated templ output; templ itself is the source of truth.
+      - path: "_templ\\.go$"
+        linters:
+          - errcheck
+          - staticcheck
+          - unused
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
