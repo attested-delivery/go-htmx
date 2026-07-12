@@ -1,0 +1,13 @@
+destination:
+  repo: attested-delivery/go-htmx
+board:
+  projectOwnerLogin: attested-delivery
+  projectNumber: 1
+  projectOwnerType: organization
+prLifecycle:
+  enabled: true
+  localReviewer: /code-review
+  requireLocalReview: true
+  requireCopilotReview: true
+  requireCleanCodeScanning: true
+  gateNewWorkOnUnresolvedThreads: true
