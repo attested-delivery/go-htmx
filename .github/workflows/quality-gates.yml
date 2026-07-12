@@ -32,8 +32,8 @@ jobs:
     # attested-delivery/.github main @ ca91728 (2026-07-12)
     uses: attested-delivery/.github/.github/workflows/pin-check.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
 
-  # SAST — CodeQL (Go, build-mode none). Switch to build-mode: autobuild if a
-  # future cgo dependency needs an actual compile step.
+  # SAST — CodeQL (Go). Go has no "none" build mode (unlike Rust/JS) — it
+  # only supports autobuild or manual, so this must build the module.
   sast:
     permissions:
       security-events: write
@@ -44,7 +44,7 @@ jobs:
     uses: attested-delivery/.github/.github/workflows/reusable-sast-codeql.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
     with:
       languages: go
-      build-mode: none
+      build-mode: autobuild
 
   # SCA — OSV-Scanner (Go modules) plus dependency review (PR merge gate).
   sca:
