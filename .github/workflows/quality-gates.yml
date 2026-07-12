@@ -32,13 +32,33 @@ jobs:
     # attested-delivery/.github main @ ca91728 (2026-07-12)
     uses: attested-delivery/.github/.github/workflows/pin-check.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
 
+  # hashFiles() isn't available in a job-level `if:` (no checkout has
+  # happened yet at that point), so detect real Go source in its own job and
+  # gate `sast` on the output instead.
+  detect-go-source:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      has-go: ${{ steps.check.outputs.has-go }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - id: check
+        run: |
+          if [ -n "$(find . -name '*.go' -print -quit)" ]; then
+            echo "has-go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-go=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # SAST — CodeQL (Go). Go has no "none" build mode (unlike Rust/JS) — it
   # only supports autobuild or manual, so this must build the module.
   # Gated on real .go files existing: CodeQL hard-fails ("no source code seen
   # during build") on an empty tree, and go-htmx has none yet. Remove the
-  # `if:` once real Go source lands.
+  # `needs`/`if:` once real Go source lands.
   sast:
-    if: ${{ hashFiles('**/*.go') != '' }}
+    needs: detect-go-source
+    if: needs.detect-go-source.outputs.has-go == 'true'
     permissions:
       security-events: write
       contents: read
