@@ -3,11 +3,11 @@
 # Learn more: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owner for everything in the repo
-* @attested-delivery/maintainers
+* @zircote
 
 # CI/CD configuration
-/.github/ @attested-delivery/maintainers
+/.github/ @zircote
 
 # Project configuration
-/go.mod @attested-delivery/maintainers
-/go.sum @attested-delivery/maintainers
+/go.mod @zircote
+/go.sum @zircote
