@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Claude Code: session/interaction memory, never committed (org convention,
+# see attested-delivery/CLAUDE.md §10). Durable repo docs go in AGENTS.md.
+CLAUDE.local.md
