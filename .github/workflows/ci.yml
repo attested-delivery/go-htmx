@@ -1,0 +1,48 @@
+name: ci
+
+# Build/lint/test for the Go application itself. Complements
+# quality-gates.yml (the org's security/supply-chain gates) — this is the
+# "does the code work" check (Story #2, attested-delivery/go-htmx#2).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-lint-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # templ and golangci-lint are plain Go module installs (pinned exact
+      # version), not GitHub Actions, so they carry no allow-list entry —
+      # `go install` verifies module integrity against the checksum
+      # database the same way `go build` does for any other dependency.
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+
+      - name: Generate
+        run: templ generate
+      - name: Build
+        run: go build ./...
+      - name: Lint
+        run: golangci-lint run ./...
+      - name: Test
+        run: go test -race -cover ./...

@@ -1,0 +1,20 @@
+package templates
+
+// Layout is the shared page shell. Every top-level page component wraps
+// its content in Layout so <head> and static-asset wiring live in one
+// place. templ checks field/method references at compile time (AD-3,
+// NFR-3), so a typo here fails `just build`, not a browser tab.
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title }</title>
+			<link rel="stylesheet" href="/static/css/app.css"/>
+		</head>
+		<body>
+			{ children... }
+		</body>
+	</html>
+}

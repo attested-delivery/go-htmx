@@ -27,6 +27,19 @@ go.work.sum
 # env file
 .env
 
+# Build output (justfile's `build` recipe)
+/bin/
+
+# Generated from .templ sources by `templ generate` (justfile's `generate`
+# recipe runs before build/run/test/lint, so these are never committed —
+# the .templ file is the source of truth).
+*_templ.go
+
+# SQLite database files (Story #3's data layer)
+*.db
+*.db-wal
+*.db-shm
+
 # Editor/IDE
 # .idea/
 # .vscode/
