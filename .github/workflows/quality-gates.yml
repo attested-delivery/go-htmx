@@ -34,7 +34,11 @@ jobs:
 
   # SAST — CodeQL (Go). Go has no "none" build mode (unlike Rust/JS) — it
   # only supports autobuild or manual, so this must build the module.
+  # Gated on real .go files existing: CodeQL hard-fails ("no source code seen
+  # during build") on an empty tree, and go-htmx has none yet. Remove the
+  # `if:` once real Go source lands.
   sast:
+    if: ${{ hashFiles('**/*.go') != '' }}
     permissions:
       security-events: write
       contents: read
