@@ -26,11 +26,15 @@ test: generate
     go test -race -cover ./...
 
 # Regenerate golden-file fixtures (AD-8's snapshot tier) after a
-# deliberate rendered-output change. Review the resulting testdata/*.golden
-# diff before committing — an unreviewed -update run is how a real
-# regression gets silently baked in as the new "expected" output.
+# deliberate rendered-output change. Scoped to internal/notes (the only
+# package importing goldie right now) rather than ./... — goldie
+# registers -update as a per-test-binary flag, so any other package's
+# test binary rejects it as unrecognized and fails outright. Review the
+# resulting testdata/*.golden diff before committing — an unreviewed
+# -update run is how a real regression gets silently baked in as the
+# new "expected" output.
 test-golden-update: generate
-    go test ./... -run TestGolden -update
+    go test ./internal/notes/... -run TestGolden -update
 
 # Lint (golangci-lint; config in .golangci.yml).
 lint: generate

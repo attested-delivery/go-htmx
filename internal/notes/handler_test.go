@@ -3,8 +3,10 @@ package notes
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -136,7 +138,7 @@ func TestHandleStreamSyncAndBroadcast(t *testing.T) {
 	}
 
 	events := make(chan string, 4)
-	go readSSEEvents(resp.Body, events)
+	go readSSEEvents(t, resp.Body, events)
 
 	sync := readEventWithTimeout(t, events, 2*time.Second)
 	if !strings.Contains(sync, "pre-existing") {
@@ -171,9 +173,18 @@ func TestHandleStreamSyncAndBroadcast(t *testing.T) {
 
 // readSSEEvents accumulates "data: ..." lines into whole events
 // (blank-line-terminated, per the SSE spec) and sends each completed
-// event on ch.
-func readSSEEvents(r io.Reader, ch chan<- string) {
+// event on ch. Runs in its own goroutine, so it reports scan failures
+// via t.Errorf — safe to call from any goroutine, unlike t.Fatalf,
+// which must run on the test's own goroutine. Without the enlarged
+// buffer, a fragment exceeding bufio.Scanner's default 64K token limit
+// would make Scan() return false with no event ever sent — the caller
+// would see a bare "no SSE event received" timeout with no indication
+// that a buffer overflow, not a missing broadcast, was the actual cause.
+func readSSEEvents(t *testing.T, r io.Reader, ch chan<- string) {
+	t.Helper()
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
 	var event strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -186,6 +197,14 @@ func readSSEEvents(r io.Reader, ch chan<- string) {
 		}
 		event.WriteString(strings.TrimPrefix(line, "data: "))
 		event.WriteString("\n")
+	}
+	// Ignore net.ErrClosed: the test closes resp.Body (deferred) once
+	// it's done reading events, which unblocks this goroutine's
+	// in-flight Read with exactly this error — expected teardown, not
+	// a real failure. Anything else (notably bufio.ErrTooLong, if a
+	// fragment ever exceeded the buffer above) is a genuine test bug.
+	if err := scanner.Err(); err != nil && !errors.Is(err, net.ErrClosed) {
+		t.Errorf("readSSEEvents: scanner error: %v", err)
 	}
 }
 
