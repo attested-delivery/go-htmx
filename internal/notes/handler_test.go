@@ -101,11 +101,16 @@ func TestHandleCreate(t *testing.T) {
 	})
 
 	// Proves maxNoteBodyBytes is actually enforced, not just declared —
-	// a request one byte over the limit must be rejected outright, and
-	// must not have created a note (the read below would otherwise see
-	// this test's request bleed into a later test's note count, since
-	// mux/h are shared across subtests here).
+	// a request whose encoded body (the "body=" form-field prefix plus
+	// maxNoteBodyBytes+1 bytes of note text, url.Values.Encode()'s own
+	// overhead) exceeds the limit must be rejected outright and must not
+	// have created a note.
 	t.Run("oversized body is rejected", func(t *testing.T) {
+		before, err := h.read.CountNotes(context.Background())
+		if err != nil {
+			t.Fatalf("CountNotes (before): %v", err)
+		}
+
 		oversized := strings.Repeat("x", maxNoteBodyBytes+1)
 		form := url.Values{"body": {oversized}}
 		req := httptest.NewRequest(http.MethodPost, "/notes", strings.NewReader(form.Encode()))
@@ -117,14 +122,17 @@ func TestHandleCreate(t *testing.T) {
 			t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
 		}
 
-		notes, err := h.read.ListNotes(context.Background())
+		// Asserts the note count is unchanged, not just that no persisted
+		// body exceeds the limit — the latter would still pass against a
+		// hypothetical implementation that truncated the oversized input
+		// and created a note anyway, which is not the intended behavior
+		// (reject outright, persist nothing).
+		after, err := h.read.CountNotes(context.Background())
 		if err != nil {
-			t.Fatalf("ListNotes: %v", err)
+			t.Fatalf("CountNotes (after): %v", err)
 		}
-		for _, n := range notes {
-			if len(n.Body) > maxNoteBodyBytes {
-				t.Fatalf("oversized body should not have been persisted, found note with %d bytes", len(n.Body))
-			}
+		if after != before {
+			t.Fatalf("note count changed from %d to %d; oversized request should not have created a note", before, after)
 		}
 	})
 }

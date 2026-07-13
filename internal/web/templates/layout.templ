@@ -4,6 +4,14 @@ package templates
 // its content in Layout so <head> and static-asset wiring live in one
 // place. templ checks field/method references at compile time (AD-3,
 // NFR-3), so a typo here fails `just build`, not a browser tab.
+//
+// app.js loads with `defer`, unlike htmx.min.js/hx-sse.min.js above:
+// those self-initialize via their own internal DOMContentLoaded handling
+// before scanning for hx-* attributes, so load order relative to <body>
+// doesn't matter for them. app.js's getElementById call runs immediately
+// at script-execution time with no such internal wait, so without defer
+// it would run before <body> (and #note-form) exists in the DOM and
+// silently find nothing.
 templ Layout(title string) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -14,7 +22,7 @@ templ Layout(title string) {
 			<link rel="stylesheet" href="/static/css/app.css"/>
 			<script src="/static/js/htmx.min.js"></script>
 			<script src="/static/js/hx-sse.min.js"></script>
-			<script src="/static/js/app.js"></script>
+			<script src="/static/js/app.js" defer></script>
 		</head>
 		<body class="min-h-screen bg-gray-50 text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100">
 			<div class="mx-auto max-w-2xl px-4 py-10 sm:py-16">
