@@ -75,13 +75,14 @@ smoke-init:
 migrate-new name:
     go run github.com/pressly/goose/v3/cmd/goose@v3.27.2 -dir internal/platform/db/migrations -s create {{name}} sql
 
-# Install Playwright's browser binaries (Story #78). Pinned to the same
-# playwright-go version as go.mod so the CLI and the library driver it
-# talks to never drift. This download is HTTPS + version-pinned only — it
-# is NOT independently checksum-verified the way tailwindcss/just are in
+# Install Playwright's browser binaries (Story #78; webkit added Story
+# #81 for cross-browser coverage). Pinned to the same playwright-go
+# version as go.mod so the CLI and the library driver it talks to never
+# drift. This download is HTTPS + version-pinned only — it is NOT
+# independently checksum-verified the way tailwindcss/just are in
 # ci.yml (see AGENTS.md's Toolchain section for the accepted gap).
 e2e-install:
-    go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium firefox
+    go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium firefox webkit
 
 # Lean, PR-blocking E2E subset: only tests named "Smoke" (see e2e/smoke_test.go).
 # Requires e2e-install to have been run at least once. Depends on generate
@@ -94,6 +95,16 @@ e2e-smoke: generate
 # regression) — runs only on merge to main, not on every PR.
 e2e-full: generate
     go test ./e2e/... -tags e2e
+
+# Regenerate visual regression baselines (Story #81) after a deliberate
+# rendering change, mirroring test-golden-update's convention above.
+# Scoped to e2e/visual specifically, same reason as test-golden-update:
+# -update is a per-test-binary flag. Review the resulting
+# testdata/*.golden.png diff before committing — an unreviewed -update
+# run is how a real visual regression gets silently baked in as the new
+# "expected" screenshot.
+test-visual-update: generate e2e-install
+    go test ./e2e/visual/... -run TestVisual -tags e2e -update
 
 # Build the distroless container image locally (Task #52). Matches what
 # release.yml's `docker` job builds, minus the push — useful to verify a
