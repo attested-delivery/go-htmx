@@ -1,0 +1,32 @@
+# Lefthook config (Go project — a single static binary, no runtime
+# dependency, matching this repo's own CGO-free philosophy). Installed
+# via /git-hooks --auto. Bypass any hook with --no-verify.
+#
+# Split by speed, not by what's convenient to write: pre-commit only
+# does what's safe to auto-fix and fast enough not to interrupt flow
+# (<5s); pre-push runs the same build+lint+test sequence CI's
+# build-lint-test job runs (`just check`, empirically ~1s in this repo),
+# so a failure here is a failure you'd otherwise only discover after
+# pushing.
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: golangci-lint fmt {staged_files}
+      stage_fixed: true
+    templ-fmt:
+      glob: "*.templ"
+      run: templ fmt {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    check:
+      # No glob filter: `just check` runs generate -> build -> lint ->
+      # test, and generate's own output (sqlc/templ codegen) can be
+      # affected by a change to any .sql/.templ/.go file, not just the
+      # ones in this push's diff — scoping to changed files would miss
+      # exactly the drift class Task #41's own CI step
+      # ("Verify generation didn't touch tracked files") exists to catch.
+      run: just check
