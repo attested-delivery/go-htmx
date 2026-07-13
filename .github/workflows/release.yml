@@ -548,7 +548,7 @@ jobs:
       packages: read
       contents: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/verify-attestation.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/verify-attestation.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       image-ref: ghcr.io/${{ github.repository }}@${{ needs.docker.outputs.image-digest }}
       attestation-repo: ${{ github.repository }}
