@@ -84,13 +84,15 @@ e2e-install:
     go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium firefox
 
 # Lean, PR-blocking E2E subset: only tests named "Smoke" (see e2e/smoke_test.go).
-# Requires e2e-install to have been run at least once.
-e2e-smoke: build
+# Requires e2e-install to have been run at least once. Depends on generate
+# (not build) — go test compiles what it needs itself, so building the
+# bin/go-htmx binary first would just be a redundant compile step.
+e2e-smoke: generate
     go test ./e2e/... -run Smoke -tags e2e
 
 # Full E2E domain set (functional, accessibility, cross-browser, visual
 # regression) — runs only on merge to main, not on every PR.
-e2e-full: build
+e2e-full: generate
     go test ./e2e/... -tags e2e
 
 # Build the distroless container image locally (Task #52). Matches what
