@@ -23,7 +23,7 @@ rm -f "$smoke_dir/.filelist" "$smoke_dir/.tree.tar"
 cd "$smoke_dir"
 
 echo "==> just init (throwaway identity)"
-go run ./tools/init smoketest github.com/smoke/test
+just init smoketest github.com/smoke/test
 
 echo "==> just build"
 just build

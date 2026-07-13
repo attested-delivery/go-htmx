@@ -43,6 +43,11 @@ import (
 	"strings"
 )
 
+// replacement is one old-text-to-new-text rewrite applyReplacements
+// performs. See applyReplacements for why this needs to be a shared
+// type rather than declared inline in run.
+type replacement struct{ old, new string }
+
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Fprintln(os.Stderr, "usage: go run ./tools/init <name> <module>")
@@ -76,7 +81,6 @@ func run(newName, newModule string) error {
 		return nil
 	}
 
-	type replacement struct{ old, new string }
 	replacements := []replacement{{oldModule, newModule}}
 
 	if oldSlug, oldOK := repoSlug(oldModule); oldOK {
@@ -100,13 +104,7 @@ func run(newName, newModule string) error {
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
-		out := data
-		for _, r := range replacements {
-			if r.old == "" || r.old == r.new {
-				continue
-			}
-			out = bytes.ReplaceAll(out, []byte(r.old), []byte(r.new))
-		}
+		out := applyReplacements(data, replacements)
 		if !bytes.Equal(out, data) {
 			info, err := os.Stat(path)
 			if err != nil {
@@ -146,6 +144,41 @@ func run(newName, newModule string) error {
 	fmt.Printf("init complete: %d file(s) rewritten, module %s -> %s, name %s -> %s\n",
 		changed, oldModule, newModule, oldName, newName)
 	return nil
+}
+
+// applyReplacements applies every replacement to data in two phases —
+// old to a unique placeholder, then every placeholder to its new value
+// — rather than a single sequential old-to-new pass. A sequential pass
+// is unsafe whenever one replacement's "new" text contains another
+// replacement's "old" text as a substring: e.g. if newModule is
+// "github.com/example/go-htmxapp" (containing the old binary name
+// "go-htmx" as a substring of the new name), the module-path
+// replacement runs first and produces that text, then the later
+// name replacement ("go-htmx" -> newName) matches inside what it just
+// wrote and corrupts it — verified by reproducing exactly that
+// scenario before adding this fix; import paths ended up disagreeing
+// with go.mod's module line, breaking the build outright. Placeholders
+// are inert byte sequences no legitimate source file contains, so a
+// later phase can never accidentally match text an earlier phase wrote.
+func applyReplacements(data []byte, replacements []replacement) []byte {
+	out := data
+	type pending struct {
+		placeholder, new string
+	}
+	var toFinalize []pending
+
+	for i, r := range replacements {
+		if r.old == "" || r.old == r.new {
+			continue
+		}
+		placeholder := fmt.Sprintf("\x00INIT_PLACEHOLDER_%d\x00", i)
+		out = bytes.ReplaceAll(out, []byte(r.old), []byte(placeholder))
+		toFinalize = append(toFinalize, pending{placeholder, r.new})
+	}
+	for _, p := range toFinalize {
+		out = bytes.ReplaceAll(out, []byte(p.placeholder), []byte(p.new))
+	}
+	return out
 }
 
 func currentModule() (string, error) {
