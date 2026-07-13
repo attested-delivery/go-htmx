@@ -1,0 +1,74 @@
+package notes
+
+import (
+	"fmt"
+
+	"github.com/attested-delivery/go-htmx/internal/platform/db/sqlc"
+	"github.com/attested-delivery/go-htmx/internal/web/templates"
+)
+
+// Page is the feature's whole page: a create form, a live notes-count
+// badge, and the notes list itself. The list div both renders the
+// initial notes (server-side, on page load) and owns the SSE
+// connection (hx-sse:connect) that keeps it live afterward — every
+// subsequent note anyone creates arrives as an SSE message and gets
+// prepended here, with no client-side polling.
+templ Page(notes []sqlc.Note) {
+	@templates.Layout("go-htmx — notes") {
+		<h1>Notes</h1>
+		<p>Example feature: a live, multi-client notes list over Server-Sent Events (Story #4, AD-4's real-time layer).</p>
+		<form
+			hx-post="/notes"
+			hx-swap="none"
+			hx-on::after:request="this.reset()"
+		>
+			<input type="text" name="body" placeholder="Write a note…" autocomplete="off" required/>
+			<button type="submit">Add</button>
+		</form>
+		<p>
+			<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(int64(len(notes))) }</span>
+		</p>
+		<div
+			id="notes-list"
+			hx-sse:connect="/notes/stream"
+			hx-target="#notes-list"
+			hx-swap="afterbegin"
+		>
+			for _, n := range notes {
+				@NoteRow(n)
+			}
+		</div>
+	}
+}
+
+// NoteRow renders one note. Used both for the initial page load (inside
+// Page) and, individually, as the primary swap content of an SSE
+// broadcast (inside Broadcast below) — same markup either way, so a
+// freshly created note looks identical to one rendered on first load.
+templ NoteRow(n sqlc.Note) {
+	<div class="note" id={ fmt.Sprintf("note-%d", n.ID) }>
+		<p>{ n.Body }</p>
+		<time>{ n.CreatedAt.Format("2006-01-02 15:04:05") }</time>
+	</div>
+}
+
+// Broadcast is the fragment published to every SSE subscriber on each
+// new note: the note itself (swapped into #notes-list per Page's
+// hx-target/hx-swap="afterbegin") plus an out-of-band-swapped
+// #notes-count update — one SSE message updating two independent
+// regions of the page, the multi-region OOB pattern Story #4/Task #21
+// calls for. htmx's core OOB swap logic (not the SSE extension) is what
+// extracts the hx-swap-oob element and routes it separately; the SSE
+// extension just hands the whole fragment to that same core swap path
+// unnamed messages always use.
+templ Broadcast(n sqlc.Note, count int64) {
+	@NoteRow(n)
+	<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(count) }</span>
+}
+
+func noteCountLabel(count int64) string {
+	if count == 1 {
+		return "1 note"
+	}
+	return fmt.Sprintf("%d notes", count)
+}

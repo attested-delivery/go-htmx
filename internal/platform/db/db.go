@@ -17,24 +17,37 @@ import (
 
 // DB holds two connection pools over the same SQLite file:
 //
-//   - Write is capped to exactly one connection (SetMaxOpenConns(1)) and
-//     its DSN sets _txlock=immediate, so every write transaction begins
-//     with BEGIN IMMEDIATE — it acquires SQLite's RESERVED lock up front
-//     and fails fast (bounded by busy_timeout) against a concurrent
-//     writer, instead of upgrading its lock mid-transaction and risking
-//     SQLITE_BUSY deep inside application logic.
-//   - Read allows multiple connections; WAL mode lets readers proceed
-//     concurrently with the single writer without blocking on it.
+//   - the write pool is capped to exactly one connection
+//     (SetMaxOpenConns(1)) and its DSN sets _txlock=immediate, so every
+//     write transaction begins with BEGIN IMMEDIATE — it acquires
+//     SQLite's RESERVED lock up front and fails fast (bounded by
+//     busy_timeout) against a concurrent writer, instead of upgrading
+//     its lock mid-transaction and risking SQLITE_BUSY deep inside
+//     application logic.
+//   - the read pool allows multiple connections; WAL mode lets readers
+//     proceed concurrently with the single writer without blocking on
+//     it.
 //
 // This split — not a single shared *sql.DB — is the contract itself: it
 // is what makes "only one writer" true at the connection-pool level
 // rather than relying on every caller to remember to serialize writes
-// themselves. Callers write through BeginWrite, never by opening a write
-// transaction against Read.
+// themselves. Both fields are unexported specifically so a caller can't
+// reach around the contract (e.g. running a write against the read
+// pool, where a lock upgrade mid-transaction can hit SQLITE_BUSY) —
+// ReadDB/WriteDB/BeginWrite below are the only sanctioned access points.
 type DB struct {
-	Read  *sql.DB
-	Write *sql.DB
+	read  *sql.DB
+	write *sql.DB
 }
+
+// ReadDB returns the read pool, for building read-only query wrappers
+// (e.g. sqlc.New(db.ReadDB())).
+func (d *DB) ReadDB() *sql.DB { return d.read }
+
+// WriteDB returns the write pool, for building query wrappers that issue
+// single-statement writes in autocommit mode. Multi-statement writes
+// needing atomicity should use BeginWrite instead.
+func (d *DB) WriteDB() *sql.DB { return d.write }
 
 // Open opens path as a WAL-mode SQLite database and returns the
 // Read/Write pool pair described on DB. path may be a plain filesystem
@@ -53,7 +66,7 @@ func Open(path string) (*DB, error) {
 	}
 	write.SetMaxOpenConns(1)
 
-	d := &DB{Read: read, Write: write}
+	d := &DB{read: read, write: write}
 
 	// journal_mode is a database-level property (not per-connection);
 	// setting it once against the write connection is enough for it to
@@ -61,7 +74,7 @@ func Open(path string) (*DB, error) {
 	// connection still needs busy_timeout/foreign_keys applied for
 	// itself — both pools' DSNs already carry those via _pragma, this
 	// just forces WAL on before anything else runs.
-	if _, err := d.Write.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+	if _, err := d.write.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 		_ = d.Close()
 		return nil, fmt.Errorf("db: set WAL mode: %w", err)
 	}
@@ -71,20 +84,31 @@ func Open(path string) (*DB, error) {
 
 // Close closes both pools, returning every close error joined together.
 func (d *DB) Close() error {
-	return errors.Join(d.Write.Close(), d.Read.Close())
+	return errors.Join(d.write.Close(), d.read.Close())
 }
 
-// BeginWrite starts a write transaction. Because Write's DSN sets
-// _txlock=immediate, the underlying driver issues BEGIN IMMEDIATE for
-// this call — see the DB doc comment for why that matters.
+// BeginWrite starts a write transaction. Because the write pool's DSN
+// sets _txlock=immediate, the underlying driver issues BEGIN IMMEDIATE
+// for this call — see the DB doc comment for why that matters.
 func (d *DB) BeginWrite(ctx context.Context) (*sql.Tx, error) {
-	return d.Write.BeginTx(ctx, nil)
+	return d.write.BeginTx(ctx, nil)
 }
 
+// dsn builds a SQLite "file:" URI DSN for path with the given _txlock
+// mode. modernc.org/sqlite splits a raw DSN on the first literal '?' to
+// separate path from query — but leaves a "file:"-prefixed DSN whole and
+// hands it to SQLite's own URI parser, which expects the path segment
+// RFC-3986-percent-encoded (see sqlite.org/uri.html). url.URL.EscapedPath
+// does exactly that while preserving "/" as a path separator (unlike
+// url.PathEscape, which would also escape "/" and break absolute
+// paths) — without it, a path containing a literal '?' truncates at the
+// wrong point and a path with spaces fails to open.
 func dsn(path, txlock string) string {
 	q := url.Values{}
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "foreign_keys(ON)")
 	q.Set("_txlock", txlock)
-	return fmt.Sprintf("file:%s?%s", path, q.Encode())
+
+	escapedPath := (&url.URL{Path: path}).EscapedPath()
+	return fmt.Sprintf("file:%s?%s", escapedPath, q.Encode())
 }

@@ -7,40 +7,31 @@
 package httpserver
 
 import (
-	"io/fs"
 	"log/slog"
 	"net/http"
 
 	"github.com/attested-delivery/go-htmx/internal/web/assets"
-	"github.com/attested-delivery/go-htmx/internal/web/templates"
 )
 
-// NewRouter builds the application's top-level handler: route
-// registration plus the standard middleware chain. Feature packages add
-// their own routes by taking a *http.ServeMux in their constructor and
-// calling Handle/HandleFunc on it — see internal/doc.go for the import
-// boundary this implies.
-func NewRouter(logger *slog.Logger) http.Handler {
+// NewMux builds the application's route table with only the routes
+// platform itself owns (static assets). It deliberately does not own
+// "/" or any application route — per internal/doc.go's import boundary,
+// httpserver (platform) must never import a feature package, so feature
+// packages register their own routes on the returned mux from the
+// caller (main.go), which is free to import both. See Wrap for the
+// middleware chain around whatever the caller ends up registering.
+func NewMux() *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(assets.Static())))
+	return mux
+}
 
-	mux.HandleFunc("GET /{$}", handleHome(logger))
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS())))
-
-	return Chain(mux,
+// Wrap applies the standard middleware chain around mux (or any
+// http.Handler), after every route — platform's and every feature's —
+// has been registered.
+func Wrap(h http.Handler, logger *slog.Logger) http.Handler {
+	return Chain(h,
 		Recover(logger),
 		Logging(logger),
 	)
-}
-
-func handleHome(logger *slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := templates.Home().Render(r.Context(), w); err != nil {
-			logger.Error("render failed", "path", r.URL.Path, "error", err)
-		}
-	}
-}
-
-func staticFS() fs.FS {
-	return assets.Static()
 }

@@ -13,8 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/attested-delivery/go-htmx/internal/notes"
 	"github.com/attested-delivery/go-htmx/internal/platform/config"
 	"github.com/attested-delivery/go-htmx/internal/platform/db"
+	"github.com/attested-delivery/go-htmx/internal/platform/db/sqlc"
 	"github.com/attested-delivery/go-htmx/internal/platform/httpserver"
 )
 
@@ -43,14 +45,21 @@ func run() error {
 		}
 	}()
 
-	if err := db.Migrate(store.Write); err != nil {
+	if err := db.Migrate(store.WriteDB()); err != nil {
 		return err
 	}
 
-	// store threads through to feature handlers in Story #4, once there
-	// are routes that actually read/write it.
+	mux := httpserver.NewMux()
 
-	handler := httpserver.NewRouter(logger)
+	notesHandler := notes.NewHandler(
+		sqlc.New(store.ReadDB()),
+		sqlc.New(store.WriteDB()),
+		notes.NewBroadcaster(),
+		logger,
+	)
+	notesHandler.Register(mux)
+
+	handler := httpserver.Wrap(mux, logger)
 	srv := httpserver.New(cfg.Addr, handler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
