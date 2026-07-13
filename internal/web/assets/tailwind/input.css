@@ -3,8 +3,8 @@
 /* v4's automatic content-detection scans common source extensions but
    doesn't reliably pick up .templ — declare it explicitly so classes used
    only in .templ files aren't purged from the compiled output. */
-@source "../../notes/**/*.templ";
-@source "../templates/**/*.templ";
+@source "../../../notes/**/*.templ";
+@source "../../templates/**/*.templ";
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, sans-serif;
