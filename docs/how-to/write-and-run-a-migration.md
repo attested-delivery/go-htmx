@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, migration, goose, sqlc]
 title: "How to write and run a migration"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/reference/project-layout.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:18:34.481Z'
+modified: '2026-07-13T16:48:11.192Z'
 ---
 
 # How to write and run a migration

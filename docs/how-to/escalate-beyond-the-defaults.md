@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, escalation, chi, sqlite, litefs, libsql, html-template]
 title: "How to escalate beyond this template's defaults"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/explanation/architecture.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:19:30.041Z'
+modified: '2026-07-13T16:47:12.893Z'
 ---
 
 # How to escalate beyond this template's defaults
@@ -84,6 +86,37 @@ Litestream" section for when each applies.
   DSN parameters and concurrency contract exactly as in the
   `mattn/go-sqlite3` swap above — libSQL's driver has its own DSN
   vocabulary.
+
+## Add authentication, CSRF protection, or rate limiting
+
+`internal/notes`'s security posture (`internal/platform/httpserver`'s
+`SecurityHeaders` middleware, `handleCreate`'s request-body size cap —
+see [Architecture rationale](../explanation/architecture.md)) is scoped
+to what's real for an anonymous, public example: no session to forge a
+request on behalf of, so no CSRF tokens; no abuse-tracking need beyond
+the size cap, so no rate limiting. Once a real consumer project adds
+either of these, they become genuine requirements, not defaults to
+second-guess:
+
+1. **Authentication/sessions**: this template has no opinion here by
+   design — pick a session store (signed cookies, a server-side store
+   backed by the existing SQLite database, or an external identity
+   provider) and wire it as its own `internal/platform/auth` package,
+   exposing middleware in the same `httpserver.Middleware`
+   (`func(http.Handler) http.Handler`) shape `Recover`/`Logging`/
+   `SecurityHeaders` already use, so it composes into `Wrap`/`Chain`
+   unchanged.
+2. **CSRF protection**: only meaningful once step 1 exists — add a
+   token check (e.g. the double-submit-cookie pattern, or a library
+   like `gorilla/csrf`) to any state-changing route that now runs
+   under an authenticated session. Doing this *before* adding sessions
+   protects nothing real and just adds a token nobody can forge
+   anything with anyway.
+3. **Rate limiting**: add a `Middleware` (token bucket, sliding window,
+   or a reverse-proxy-level limiter like nginx/Envoy in front of the
+   app) scoped to whichever routes see abuse in practice — most
+   templates don't need this from day one, so this template doesn't
+   guess at limits that would just be wrong for your actual traffic.
 
 ## Swap `templ` for `html/template`
 

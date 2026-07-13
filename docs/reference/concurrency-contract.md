@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/reference
 tags: [reference, sqlite, concurrency, wal]
 title: "Reference: the SQLite concurrency contract"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/explanation/architecture.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:20:21.541Z'
+modified: '2026-07-13T16:48:20.112Z'
 ---
 
 # Reference: the SQLite concurrency contract

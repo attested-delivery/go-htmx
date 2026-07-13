@@ -5,9 +5,13 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/reference
 tags: [reference, layout, packages]
 title: "Reference: project layout"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/explanation/architecture.md
+  - type: relates-to
+    target: docs/how-to/style-with-tailwind.md
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -16,7 +20,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:19:54.951Z'
+modified: '2026-07-13T16:46:44.916Z'
 ---
 
 # Reference: project layout
@@ -28,6 +32,9 @@ Every top-level directory in this template and its contract.
 | `cmd/<name>/main.go` | The single entrypoint. Wires config, the HTTP router, and the server; contains no business logic itself. |
 | `internal/platform/*` | Infrastructure: `config` (env-var loading), `db` (SQLite access layer, WAL/`BEGIN IMMEDIATE`/single-writer contract), `httpserver` (router/middleware chain). Must not import `internal/<feature>/*`. |
 | `internal/web/*` | Shared UI: `templates` (the `templ` layout shell), `assets` (embedded static assets, dev/prod build-tag split). Treated as a platform package for import-boundary purposes. |
+| `internal/web/assets/tailwind/input.css` | Tailwind CSS source (`@import`, `@source` globs, `@theme` tokens) — see [Style with Tailwind](../how-to/style-with-tailwind.md). |
+| `internal/web/assets/static/css/app.css` | Tailwind's compiled output. Gitignored — a build artifact, not a source file; regenerate with `just tailwind` (or any recipe that depends on `generate`). |
+| `internal/web/assets/static/js/app.js` | First-party (not vendored — see `static/js/VENDORED.md` for what is) client-side glue script, e.g. the notes form's reset-after-submit behavior. Loaded with `defer` in `layout.templ`. |
 | `internal/<feature>/*` | One self-contained vertical slice per product feature (`internal/notes` is the worked example). May import `internal/platform/*` and `internal/web/*`. Must not import another `internal/<feature>/*` package directly. |
 | `internal/doc.go` | The compiler-adjacent statement of the layout rule above. |
 | `internal/platform/db/migrations/` | Zero-padded goose SQL migration files, embedded via `go:embed`. |

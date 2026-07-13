@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/tutorial
 tags: [tutorial, onboarding, quickstart]
 title: "Use this template: from copy to a live change"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/how-to/add-a-feature-package.md
@@ -18,7 +20,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:18:08.949Z'
+modified: '2026-07-13T16:47:22.784Z'
 ---
 
 # Use this template: from copy to a live change
@@ -34,6 +36,9 @@ its UI and watched it appear in the browser.
 - `templ`, `sqlc`, and `golangci-lint` installed and pinned to the
   versions in `AGENTS.md`'s Toolchain section — run those `go install`
   commands now if you haven't already.
+- The Tailwind CSS standalone CLI, also pinned in `AGENTS.md`'s
+  Toolchain section (a separate `curl`-and-checksum-verify install, not
+  `go install` — Tailwind's CLI isn't a Go module).
 - A copy of this template on disk (via GitHub's "Use this template", or
   a plain clone), with a terminal open at its root.
 
@@ -85,13 +90,14 @@ Stop the server (Ctrl-C) and open `internal/notes/views.templ` in an
 editor. Find this line:
 
 ```templ
-<h1>Notes</h1>
+<h1 class="text-2xl font-semibold tracking-tight">Notes</h1>
 ```
 
-Change it to:
+Change the text (leave the `class` attribute — that's Tailwind's
+styling for the heading, not part of what you're editing) to:
 
 ```templ
-<h1>My Notes</h1>
+<h1 class="text-2xl font-semibold tracking-tight">My Notes</h1>
 ```
 
 Save, then run `just run` again (it re-runs `templ generate` for you).

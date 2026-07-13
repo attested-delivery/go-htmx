@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/reference
 tags: [reference, release, artifacts, attestation]
 title: "Reference: release artifact naming and verification"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/explanation/architecture.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:44:32.610Z'
+modified: '2026-07-13T16:48:36.968Z'
 ---
 
 # Reference: release artifact naming and verification
