@@ -70,7 +70,7 @@ CLI with read access to this repo.
 
 ```sh
 gh release download <tag> --repo attested-delivery/go-htmx
-sha256sum -c go-htmx-<version>-checksums.txt
+shasum -a 256 -c go-htmx-<version>-checksums.txt
 ```
 
 **SLSA provenance** (per binary):

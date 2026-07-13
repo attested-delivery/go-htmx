@@ -381,6 +381,17 @@ jobs:
               --predicate-type https://cyclonedx.org/bom
           done
 
+      # "Signed != passed" (org governance): this step alone only proves an
+      # attestation exists, is validly signed, and came from the expected
+      # signer -- it does not itself re-derive a pass/fail verdict from the
+      # predicate body. That's intentional here, not an omission: sast/sca/
+      # trivy above are `needs:` by sast-attest/sca-attest/iac-attest, which
+      # are in turn `needs:` by this job -- a failing gate job never lets
+      # its -attest job run, so no attestation for a failed gate is ever
+      # created for this workflow to find. A missing attestation (this step
+      # erroring because gh attestation verify found nothing) IS the
+      # verdict-failure signal; there is no "signed but failed" state this
+      # design can reach.
       - name: Verify seam-signed gate verdicts on the checksums manifest
         working-directory: dist
         run: |
