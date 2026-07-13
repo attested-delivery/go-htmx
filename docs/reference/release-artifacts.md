@@ -16,7 +16,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:20:34.957Z'
+modified: '2026-07-13T02:30:54.178Z'
 ---
 
 # Reference: release artifact naming and verification
@@ -48,10 +48,26 @@ the same `{name}-{version}` prefix.
 
 Once this repo's attested release pipeline is wired (Story #9), every
 release artifact carries SLSA provenance and a CycloneDX SBOM,
-independently verifiable with no shared secret:
+independently verifiable with no shared secret. The minimal command
+below only checks that a valid signature exists — it does **not** by
+itself confirm which workflow signed it or that the gate it attests to
+actually passed:
 
 ```sh
 gh attestation verify <artifact-file> --owner attested-delivery
+```
+
+Signed is not the same as passed: an attestation proves a gate *ran and
+recorded a verdict*, not that the verdict was clean. The org standard
+this repo conforms to also pins `--signer-workflow` (SLSA Build L3
+means the Fulcio SAN is the signer workflow, not just the source repo)
+and requires reading the predicate's verdict field, not just checking
+that a signature verifies:
+
+```sh
+gh attestation verify <artifact-file> --owner attested-delivery \
+  --signer-workflow attested-delivery/.github/.github/workflows/reusable-attest-scan.yml \
+  --predicate-type https://attested-delivery.github.io/attestations/<gate>/v1
 ```
 
 This is a static (non-container) artifact path: provenance comes from
