@@ -12,6 +12,8 @@ relationships:
     target: docs/reference/project-layout.md
   - type: relates-to
     target: docs/how-to/style-with-tailwind.md
+  - type: relates-to
+    target: docs/how-to/add-e2e-coverage.md
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -20,7 +22,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T16:46:35.394Z'
+modified: '2026-07-13T22:11:36.578Z'
 ---
 
 # How to add a feature package
@@ -57,15 +59,21 @@ example.
 3. Run `just generate` so `sqlc` regenerates
    `internal/platform/db/sqlc/` against the new schema/queries.
 
-4. Wire the handler into `cmd/<app>/main.go`: import the new package
-   and call its `Register(mux)` alongside `notes.NewHandler(...)`'s
-   call, following the existing wiring for `notes`.
+4. Wire the handler into `internal/app.New` (`internal/app/app.go`), not
+   `cmd/<app>/main.go`: import the new package and call its
+   `Register(mux)` alongside `notesHandler.Register(mux)`'s call,
+   following the existing wiring for `notes`.
 
 5. Style the scaffolded `.templ` files with Tailwind — see [Style a
    feature with Tailwind](style-with-tailwind.md) for how the build
    step picks up a new feature's markup.
 
-6. Run `just check`.
+6. Add E2E coverage — see [Add E2E coverage for a new
+   feature](add-e2e-coverage.md) for the Page Object pattern and the
+   four test domains (functional, accessibility, cross-browser, visual
+   regression).
+
+7. Run `just check`.
 
 ## Completion
 

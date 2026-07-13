@@ -10,6 +10,8 @@ temporal:
 relationships:
   - type: relates-to
     target: docs/explanation/architecture.md
+  - type: relates-to
+    target: docs/how-to/add-e2e-coverage.md
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -18,7 +20,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T16:46:54.349Z'
+modified: '2026-07-13T22:12:23.739Z'
 ---
 
 # Reference: justfile commands
@@ -44,6 +46,10 @@ information as narrative reference.
 | `just docker-build` | — | Builds the distroless container image locally (`Dockerfile` at repo root) — no push. Matches what `release.yml`'s `docker` job builds. |
 | `just fmt` | — | `gofmt -l -w .` then `templ fmt .`. |
 | `just clean` | — | `rm -rf bin`. |
+| `just e2e-install` | — | `go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium firefox webkit`. Downloads Playwright's browser binaries. |
+| `just e2e-smoke` | `generate` | `go test ./e2e/... -run Smoke -tags e2e`. Scoped to tests whose function name contains `Smoke` — the PR-blocking subset. |
+| `just e2e-full` | `generate` | `go test ./e2e/... -tags e2e`. Runs everything under `e2e/` (functional, accessibility, cross-browser, visual regression). Runs on merge to `main` only, via `ci.yml`'s `if: github.event_name == 'push'` gate. |
+| `just test-visual-update` | `generate`, `e2e-install` | `go test ./e2e/visual/... -run TestVisual -tags e2e -update`. Regenerates visual regression baselines under `e2e/visual/testdata/*.golden.png`. |
 
 ## Exit codes
 

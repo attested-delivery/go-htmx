@@ -16,6 +16,8 @@ relationships:
     target: docs/how-to/style-with-tailwind.md
   - type: relates-to
     target: docs/how-to/escalate-beyond-the-defaults.md
+  - type: relates-to
+    target: docs/how-to/add-e2e-coverage.md
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -24,7 +26,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T16:47:03.639Z'
+modified: '2026-07-13T22:14:36.412Z'
 ---
 
 # Understanding this template's architecture
@@ -199,10 +201,95 @@ without `unsafe-eval`), and an inline `style="display:none"` attribute
 (blocked without `unsafe-inline` for `style-src`). Both were fixed by
 removing the thing CSP was correctly restricting, not by loosening the
 policy: the reset now runs from a real `addEventListener` on htmx's own
-`htmx:afterRequest` event (see `internal/web/assets/static/js/app.js`),
+`htmx:after:request` event (see `internal/web/assets/static/js/app.js`),
 and the hidden element uses a Tailwind utility class instead of an
 inline style. A stricter CSP finding a real, working default's actual
 edges is the mechanism doing its job, not a sign to relax it.
+
+That fix carried a second, subtler bug of its own: the first version of
+`app.js` listened for `htmx:afterRequest`, htmx v1/v2's event name —
+this template pins htmx v4.0.0-beta5, which renamed its whole event set
+to colon-separated form (`htmx:after:request`), so the listener silently
+never fired and the reset-after-submit behavior never actually worked,
+despite compiling cleanly and throwing no errors. Nothing in the
+existing Go test triad (AD-8) could have caught this — it never executes
+JavaScript in a real browser. Only a real browser E2E test, added later
+under Epic #77 (see "Why playwright-go, not Node's `@playwright/test`"
+below), actually proved the CSP-compatibility fix worked rather than
+merely compiled.
+
+## Why playwright-go, not Node's `@playwright/test`
+
+The gap the two bugs above expose is structural, not incidental:
+`httptest` handler tests, in-memory SQLite, and golden-file snapshots
+(AD-8) all run without a browser, so none of them execute a line of
+JavaScript. A CSP rollout can break client-side behavior in ways that
+compile cleanly, throw no server-side error, and pass every existing
+test — the only way either bug above was actually found was a human
+manually curling and clicking through the running app. That's a real
+gap for a template whose worked example leans on client-side behavior
+(htmx, SSE) at all, not a hypothetical one; Epic #77 closes it with real
+browser-driven E2E coverage across four domains: functional,
+accessibility (axe-core, WCAG 2.2 AA), cross-browser (Chromium, Firefox,
+WebKit), and visual regression.
+
+The choice of *how* to drive that browser from Go mirrors the reasoning
+behind the Tailwind CLI above: `github.com/mxschmitt/playwright-go`
+(Go-native community bindings) over Microsoft's own Node.js
+`@playwright/test` package, to avoid reintroducing an npm toolchain
+dependency this template has deliberately avoided everywhere else.
+playwright-go does bundle a Node.js runtime, but only for its own
+background "driver" process — that's an implementation detail of the Go
+module, not the system's Node/npm, and it introduces no `package.json`
+or npm install step. `just e2e-install` downloads real browser binaries
+(Chromium, Firefox, WebKit) via a plain `go run` invocation.
+
+That choice isn't free, and the costs are worth naming rather than
+glossing over:
+
+- playwright-go's browser-binary download is HTTPS and version-pinned
+  only — unlike `tailwindcss` and `just`, which this template installs
+  with an independently published checksum, Playwright doesn't publish
+  per-asset checksums for its browser binaries at all. `AGENTS.md`'s
+  Toolchain section states this gap plainly rather than implying a
+  verification step that doesn't exist.
+- Any script injected into a page under this template's own strict CSP
+  — the same CSP whose rollout caused the bugs discussed above — needs
+  `BrowserNewPageOptions.BypassCSP` set on that page, or the injection
+  hangs indefinitely rather than failing loudly. This was found the hard
+  way while building the accessibility check: `Page.AddScriptTag`'s
+  inline-content injection sat blocked until `go test`'s ten-minute
+  default timeout killed it, because the browser silently declined to
+  run a script CSP disallows and Playwright's call was waiting on a
+  `load` event that could now never fire. `BypassCSP` only relaxes CSP
+  on that isolated test page — it changes nothing about what the real
+  app serves.
+- `t.Cleanup` unwinds last-registered-first, which a purely server-side
+  Go test rarely has to think about but an E2E test does: the
+  `httptest.Server` behind a test has to be created *before* the browser
+  page that navigates to it, or a page's still-open connection (the
+  notes feature's SSE stream, in practice) blocks the server's `Close()`
+  forever once cleanup runs in the wrong order. This surfaced as a real
+  hang, not a theoretical footgun, while wiring up that same
+  accessibility check.
+
+Visual regression is the one domain that didn't reach for a dependency:
+a real candidate (`github.com/n7olkachev/imgdiff`) exists but hasn't
+published since 2021, and pixel-difference comparison is little enough
+logic (per-pixel Euclidean RGB distance against a threshold) that
+maintaining it directly — with its own unit tests against synthetic
+images — costs less than carrying an unmaintained package under
+OSV-Scanner's watch. The lean `Smoke`-tagged subset that blocks every PR
+versus the full four-domain set that runs only on merge to `main`
+follows the same reasoning as everywhere else a fast/slow split exists
+in this template: keep the signal every contributor waits on fast,
+without giving up full coverage on the branch that actually ships.
+
+See [Add E2E coverage for a new feature](../how-to/add-e2e-coverage.md)
+for the actual how-to, and [Reference: project
+layout](../reference/project-layout.md) /
+[Reference: justfile commands](../reference/justfile-commands.md) for
+what Epic #77 added.
 
 ## Where these decisions came from
 
