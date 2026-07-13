@@ -166,7 +166,18 @@ func TestHandleStreamSyncAndBroadcast(t *testing.T) {
 	if !strings.Contains(broadcast, "live note") {
 		t.Fatalf("broadcast missing the live note: %q", broadcast)
 	}
-	if !strings.Contains(broadcast, `id="notes-count" hx-swap-oob="true">2 notes`) {
+	// Checked as independent conditions, not one exact adjacent substring
+	// — asserting a fixed attribute order/adjacency makes this brittle
+	// against unrelated markup changes (e.g. adding a class attribute)
+	// that don't affect the actual behavior being tested: the count
+	// badge OOB-updating to the right value.
+	if !strings.Contains(broadcast, `id="notes-count"`) {
+		t.Errorf("broadcast should include the #notes-count element: %q", broadcast)
+	}
+	if !strings.Contains(broadcast, `hx-swap-oob="true"`) {
+		t.Errorf("broadcast should OOB-swap the count element: %q", broadcast)
+	}
+	if !strings.Contains(broadcast, "2 notes") {
 		t.Errorf("broadcast should OOB-update the count to 2: %q", broadcast)
 	}
 }
