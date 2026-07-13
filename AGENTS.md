@@ -45,6 +45,17 @@ first use. No other tools required — see `just smoke-init`, which proves
 a fresh copy needs nothing beyond this plus network access for Go module
 downloads.
 
+E2E tests (`e2e/`, behind the `e2e` build tag so the default
+`go build`/`go vet`/`go test ./...` never touches this tree) use
+[`playwright-go`](https://github.com/mxschmitt/playwright-go), a Go-native
+community binding — genuinely Node-free, same rationale as the Tailwind CLI
+above. `just e2e-install` downloads its browser binaries (Chromium, Firefox)
+via `go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0
+install --with-deps`. **Accepted supply-chain gap**: unlike `tailwindcss`/
+`just` above, this download is HTTPS + version-pinned only — playwright-go
+doesn't publish per-asset checksums the way those tools do, so it isn't
+independently verified the way this repo's other binary installs are.
+
 ## Commands
 
 Run `just` with no arguments to list every recipe with its description.
@@ -65,6 +76,9 @@ The ones that matter day to day:
 | `just smoke-init` | The template's real acceptance test: copies the tree, runs `init` with a throwaway identity, builds + tests the copy, grep-gates for leftover identity strings. |
 | `just docker-build` | Build the distroless container image locally (`Dockerfile` at repo root) — no push. Matches what `release.yml`'s `docker` job builds. |
 | `just fmt` | `gofmt` + `templ fmt`. |
+| `just e2e-install` | Download Playwright's browser binaries (Chromium, Firefox). Run once before any `e2e-*` recipe below. |
+| `just e2e-smoke` | `build`, then the `Smoke`-tagged E2E subset (`-tags e2e -run Smoke`) — the lean, PR-blocking tier. |
+| `just e2e-full` | `build`, then the full E2E domain set (`-tags e2e`) — functional, accessibility, cross-browser, visual regression. Runs on merge to `main`, not every PR. |
 
 ## Layout & package boundaries
 
