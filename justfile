@@ -67,6 +67,12 @@ smoke-init:
 migrate-new name:
     go run github.com/pressly/goose/v3/cmd/goose@v3.27.2 -dir internal/platform/db/migrations -s create {{name}} sql
 
+# Build the distroless container image locally (Task #52). Matches what
+# release.yml's `docker` job builds, minus the push — useful to verify a
+# Dockerfile change builds and the app actually serves before pushing.
+docker-build:
+    docker build -t go-htmx:local .
+
 # Format Go and templ sources.
 fmt:
     gofmt -l -w .

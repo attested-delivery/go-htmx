@@ -3,8 +3,10 @@
 A production-ready Go + HTMX + SQLite project template: `modernc.org/sqlite`
 (pure Go, CGO-free), a fixed WAL + `BEGIN IMMEDIATE` single-writer
 concurrency contract, `templ` views, htmx v4 + Server-Sent Events for
-real-time UI, `goose` migrations, `sqlc` codegen, and a single
-self-contained embedded binary.
+real-time UI, `goose` migrations, `sqlc` codegen, a single self-contained
+embedded binary, a distroless container image, and an attested release
+pipeline (SLSA provenance, CycloneDX SBOM, seam-signed gate verdicts,
+fail-closed verify).
 
 ## Quickstart
 
@@ -17,6 +19,43 @@ just test                               # httptest + in-memory SQLite + golden-f
 ```
 
 Run `just` with no arguments to list every recipe.
+
+## Documentation
+
+Full Diátaxis documentation set under [`docs/`](docs/):
+
+- **Tutorial**: [Use this template: from copy to a live
+  change](docs/tutorial/getting-started.md) — start here if you're new.
+- **How-to guides**: [add a feature
+  package](docs/how-to/add-a-feature-package.md), [write and run a
+  migration](docs/how-to/write-and-run-a-migration.md), [add an
+  SSE-pushed live region](docs/how-to/add-an-sse-live-region.md),
+  [deploy with Litestream](docs/how-to/deploy-with-litestream.md),
+  [escalate beyond the
+  defaults](docs/how-to/escalate-beyond-the-defaults.md) (chi,
+  mattn/go-sqlite3, LiteFS/libSQL, html/template).
+- **Reference**: [justfile
+  commands](docs/reference/justfile-commands.md), [project
+  layout](docs/reference/project-layout.md),
+  [configuration](docs/reference/configuration.md), [the SQLite
+  concurrency contract](docs/reference/concurrency-contract.md),
+  [release artifact naming and
+  verification](docs/reference/release-artifacts.md).
+- **Explanation**: [understanding this template's
+  architecture](docs/explanation/architecture.md) — the *why* behind
+  every default above.
+
+`AGENTS.md` has conventions for any coding agent (or human) working
+mechanically in this repo — scaffolding, codegen, wiring a new feature.
+
+## Verifying a release
+
+Every tagged release publishes five platform binaries, a checksums
+manifest, a distroless container image, SLSA Build L3 provenance, a
+CycloneDX SBOM, and seam-signed SAST/SCA/IaC/container-scan gate
+verdicts — all independently, keylessly verifiable. See
+[`SECURITY.md`](SECURITY.md) for the exact, copy-pasteable
+`gh attestation verify`/`cosign verify` commands.
 
 ## Post-copy checklist
 
@@ -38,13 +77,13 @@ After clicking "Use this template" (or otherwise copying this tree):
 4. **Owner-side settings this template cannot carry** (a copied repo
    starts with none of these — set them explicitly):
    - Branch protection / rulesets on `main`: require the CI status checks
-     this repo actually runs (`pin-check`, `sca`, `trivy`, and this
-     template's own `build-lint-test` job — check `.github/workflows/`
-     for the current job names), required reviews, dismiss-stale,
-     signed commits if your org requires them.
-   - Repo secrets: `GITLEAKS_LICENSE` if you enable Gitleaks; anything
-     Story #9's attested release pipeline needs (SLSA/SBOM signing is
-     keyless/OIDC by default — no long-lived signing key secret needed).
+     this repo actually runs (`pin-check`, `sast`, `sca`, `trivy` —
+     check `.github/workflows/quality-gates.yml` for the current job
+     names), required reviews, dismiss-stale, signed commits if your
+     org requires them.
+   - Repo secrets: `GITLEAKS_LICENSE` if you enable Gitleaks. Nothing
+     else — the release pipeline's SLSA/SBOM/image signing is
+     keyless/OIDC by default, no long-lived signing key secret needed.
    - If you're inside the `attested-delivery` org: this template's CI
      already calls the org's central reusable workflows
      (`attested-delivery/.github/...`, SHA-pinned) — see the org's
@@ -59,5 +98,6 @@ After clicking "Use this template" (or otherwise copying this tree):
 ## Architecture
 
 See `internal/doc.go` for the `internal/platform/*` vs `internal/<feature>/*`
-import boundary, and `AGENTS.md` (once Story #7 lands) for the full
-conventions doc.
+import boundary, `AGENTS.md` for the full conventions doc, and
+[`docs/explanation/architecture.md`](docs/explanation/architecture.md)
+for the rationale behind every default this template picks.

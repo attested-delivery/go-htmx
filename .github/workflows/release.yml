@@ -6,10 +6,12 @@ name: release
 # binaries, SLSA Build L3 provenance, a CycloneDX SBOM, seam-signed gate
 # verdicts bound to the release, and a fail-closed verify before publish.
 #
-# Static-artifact path (org governance CLAUDE.md SS3/SS5 — this app ships a
-# plain Go binary, no container image yet):
+# Two parallel, independent attested paths in this one workflow:
+#
+# 1. Static-artifact path (the five platform binaries; org governance
+#    CLAUDE.md SS3/SS5):
 #   - Provenance: actions/attest-build-provenance (NOT sign-and-attest.yml,
-#     which is image-only).
+#     which is image-only — that's path 2, below).
 #   - SBOM: anchore/sbom-action (Syft, CycloneDX) + actions/attest-sbom.
 #   - Merge-time gate verdicts (SAST/SCA/IaC) are RE-RUN here against the
 #     exact tagged commit (a tag is not guaranteed to point at a commit that
@@ -23,6 +25,24 @@ name: release
 #     subjects by digest, which does not apply to a static artifact, so
 #     verification runs inline via `gh attestation verify` (per governance's
 #     explicit static-artifact carve-out) before the release is published.
+#
+# 2. Container-image path (the `Dockerfile` distroless image, Task #52) —
+#    the `docker`/`docker-sign`/`docker-verify`/`gate-image`/
+#    `attest-container-scan` jobs, mirroring the org's own established
+#    caller pattern (rust-template's pipeline.yml/release-docker.yml):
+#   - Build + push to GHCR (tag pushes only — never on a PR, matching the
+#     same gating rust-template uses; there is no PR trigger on this
+#     workflow at all, so this distinction is moot here but documented for
+#     when this pattern is copied elsewhere).
+#   - `sign-and-attest.yml`: the actual image-only SLSA Build L3 signer
+#     (contents+id-token+attestations+packages), keyed off the pushed
+#     image's digest, not a tag (tags are mutable).
+#   - `verify-attestation.yml`: independent fail-closed re-verify of the
+#     provenance signature between the push and the scan/gate steps below.
+#   - `reusable-trivy.yml` with `image-ref` set (now that an image exists to
+#     scan, unlike quality-gates.yml's `trivy` job, which never builds one)
+#     + `reusable-attest-scan.yml` seam-signs that verdict onto the image
+#     digest, same pattern as the static-artifact gate verdicts above.
 #
 # pin-check (quality-gates.yml) still enforces SHA-pinning on this file on
 # every push/PR; there is no separate pin-check job here.
@@ -429,3 +449,126 @@ jobs:
           name: ${{ needs.meta.outputs.name }} ${{ needs.meta.outputs.version }}
           files: dist/*
           generate_release_notes: true
+
+  # ---------------------------------------------------------------------
+  # Container-image path (Task #52) — build, sign, verify, scan. Follows
+  # the org's own established caller pattern (rust-template's
+  # pipeline.yml), not invented fresh. Unlike the binary path above
+  # (which exercises build -> attest -> verify on a workflow_dispatch dry
+  # run via its synthetic dev version), this whole chain is tag-gated via
+  # `if: startsWith(github.ref, 'refs/tags/')` on every job below and
+  # does not run at all on a workflow_dispatch dry run — there is no
+  # no-push dry-run mode for the container path.
+  # ---------------------------------------------------------------------
+  docker:
+    needs: meta
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Log in to Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Extract metadata
+        id: meta-docker
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-docker.outputs.tags }}
+          labels: ${{ steps.meta-docker.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Image-only SLSA Build L3 signer — distinct from the static-artifact
+  # provenance above; the subject is a pushed image digest, not a file.
+  docker-sign:
+    needs: docker
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write
+      attestations: write
+      packages: write
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/sign-and-attest.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      image-name: ghcr.io/${{ github.repository }}
+      image-digest: ${{ needs.docker.outputs.image-digest }}
+
+  docker-verify:
+    needs: [docker, docker-sign]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write
+      attestations: read
+      packages: read
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/verify-attestation.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      image-ref: ghcr.io/${{ github.repository }}@${{ needs.docker.outputs.image-digest }}
+      attestation-repo: ${{ github.repository }}
+
+  # Trivy WITH image-ref set — unlike quality-gates.yml's `trivy` job,
+  # which never builds an image and so only ever scans IaC/license.
+  # needs docker-verify, not just docker: scanning (and, downstream,
+  # attesting) an image whose independent provenance verification
+  # hasn't succeeded would break the fail-closed "verify between push
+  # and scan/gate steps" ordering this file's header comment promises.
+  gate-image:
+    needs: [docker, docker-verify]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      image-ref: ghcr.io/${{ github.repository }}@${{ needs.docker.outputs.image-digest }}
+      scan-iac: false
+
+  attest-container-scan:
+    # docker-verify listed explicitly (not just relied on transitively
+    # through gate-image) so the ordering is legible from this job's own
+    # needs: list, not something a reader has to trace through gate-image
+    # to confirm.
+    needs: [docker, docker-verify, gate-image]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      subject-name: ghcr.io/${{ github.repository }}
+      subject-digest: ${{ needs.docker.outputs.image-digest }}
+      predicate-type: https://attested-delivery.github.io/attestations/container-scan/v1
+      predicate-artifact: ${{ needs.gate-image.outputs.image-sarif-artifact }}
+      predicate-filename: ${{ needs.gate-image.outputs.image-sarif-filename }}

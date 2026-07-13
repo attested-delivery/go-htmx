@@ -31,14 +31,22 @@ just build
 echo "==> just test"
 just test
 
+echo "==> just docker-build"
+# Proves the Dockerfile's cmd/<name> build path actually got rewritten
+# (Task #52 found this the hard way: Dockerfile has no extension, so it
+# needs its own tools/init allowName entry, not just allowExt -- a
+# leftover ./cmd/go-htmx reference here fails the docker build outright
+# once cmd/go-htmx has been renamed, which build/test above can't catch).
+just docker-build
+
 echo "==> grep-gate: no leftover template identity"
 if grep -rlIE 'go-htmx|attested-delivery/go-htmx' \
     --include='*.go' --include='*.templ' --include='*.md' \
     --include='*.yml' --include='*.yaml' --include='*.golden' \
-    --include='justfile' --include='go.mod' .
+    --include='justfile' --include='go.mod' --include='Dockerfile' .
 then
     echo "FAIL: template identity leaked into the initialized copy (see files above)" >&2
     exit 1
 fi
 
-echo "OK: smoke-init passed — init, build, test, and identity grep-gate all green"
+echo "OK: smoke-init passed — init, build, test, docker-build, and identity grep-gate all green"
