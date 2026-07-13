@@ -31,30 +31,45 @@ import (
 // stale page-load".
 templ Page(notes []sqlc.Note) {
 	@templates.Layout("go-htmx — notes") {
-		<h1>Notes</h1>
-		<p>Example feature: a live, multi-client notes list over Server-Sent Events (Story #4, AD-4's real-time layer).</p>
-		<form
-			hx-post="/notes"
-			hx-swap="none"
-			hx-on::after:request="this.reset()"
-		>
-			<input type="text" name="body" placeholder="Write a note…" autocomplete="off" required/>
-			<button type="submit">Add</button>
-		</form>
-		<p>
-			<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(int64(len(notes))) }</span>
-		</p>
-		<div
-			id="notes-stream"
-			hx-sse:connect="/notes/stream"
-			hx-target="#notes-list"
-			hx-swap="afterbegin"
-			style="display:none"
-		></div>
-		<div id="notes-list">
-			for _, n := range notes {
-				@NoteRow(n)
-			}
+		<div class="space-y-8">
+			<header class="space-y-1">
+				<h1 class="text-2xl font-semibold tracking-tight">Notes</h1>
+				<p class="text-sm text-gray-500 dark:text-gray-400">Example feature: a live, multi-client notes list over Server-Sent Events (Story #4, AD-4's real-time layer).</p>
+			</header>
+			<form
+				hx-post="/notes"
+				hx-swap="none"
+				hx-on::after:request="this.reset()"
+				class="flex gap-2"
+			>
+				<input
+					type="text"
+					name="body"
+					placeholder="Write a note…"
+					autocomplete="off"
+					required
+					class="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
+				/>
+				<button
+					type="submit"
+					class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+				>Add</button>
+			</form>
+			<p>
+				<span id="notes-count" hx-swap-oob="true" class={ noteCountClasses }>{ noteCountLabel(int64(len(notes))) }</span>
+			</p>
+			<div
+				id="notes-stream"
+				hx-sse:connect="/notes/stream"
+				hx-target="#notes-list"
+				hx-swap="afterbegin"
+				style="display:none"
+			></div>
+			<div id="notes-list" class="space-y-3">
+				for _, n := range notes {
+					@NoteRow(n)
+				}
+			</div>
 		</div>
 	}
 }
@@ -64,9 +79,9 @@ templ Page(notes []sqlc.Note) {
 // broadcast (inside Broadcast below) — same markup either way, so a
 // freshly created note looks identical to one rendered on first load.
 templ NoteRow(n sqlc.Note) {
-	<div class="note" id={ fmt.Sprintf("note-%d", n.ID) }>
-		<p>{ n.Body }</p>
-		<time>{ n.CreatedAt.Format("2006-01-02 15:04:05") }</time>
+	<div class="note rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-800" id={ fmt.Sprintf("note-%d", n.ID) }>
+		<p class="text-sm leading-relaxed">{ n.Body }</p>
+		<time class="mt-1 block text-xs text-gray-400 dark:text-gray-500">{ n.CreatedAt.Format("2006-01-02 15:04:05") }</time>
 	</div>
 }
 
@@ -81,7 +96,7 @@ templ NoteRow(n sqlc.Note) {
 // unnamed messages always use.
 templ Broadcast(n sqlc.Note, count int64) {
 	@NoteRow(n)
-	<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(count) }</span>
+	<span id="notes-count" hx-swap-oob="true" class={ noteCountClasses }>{ noteCountLabel(count) }</span>
 }
 
 // Sync is the first message handleStream sends on every new SSE
@@ -98,8 +113,15 @@ templ Sync(notes []sqlc.Note, count int64) {
 			@NoteRow(n)
 		}
 	</div>
-	<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(count) }</span>
+	<span id="notes-count" hx-swap-oob="true" class={ noteCountClasses }>{ noteCountLabel(count) }</span>
 }
+
+// noteCountClasses is shared by every place the #notes-count badge is
+// rendered (Page's initial render, Broadcast, Sync) — hx-swap-oob="true"
+// (unlike Sync's own innerHTML-mode #notes-list) replaces the whole
+// element, so every one of these needs its own copy of the classes, not
+// just the first.
+const noteCountClasses = "inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
 
 func noteCountLabel(count int64) string {
 	if count == 1 {
