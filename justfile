@@ -4,11 +4,19 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
     @just --list
 
-# Regenerate templ Go code from .templ sources (AD-3) and sqlc's
-# database/sql code from internal/platform/db/query/*.sql (Story #3).
-generate:
+# Regenerate templ Go code from .templ sources (AD-3), sqlc's database/sql
+# code from internal/platform/db/query/*.sql (Story #3), and the compiled
+# Tailwind stylesheet from internal/web/assets/tailwind/input.css.
+generate: tailwind
     templ generate
     sqlc generate
+
+# Compile internal/web/assets/tailwind/input.css into the embedded
+# stylesheet (internal/web/assets/static/css/app.css is gitignored — a
+# build artifact, not a source file; see .gitignore for why).
+tailwind:
+    tailwindcss -i internal/web/assets/tailwind/input.css \
+        -o internal/web/assets/static/css/app.css --minify
 
 # Build the single self-contained binary (AD-9). Depends on generate so a
 # stale _templ.go never silently ships.

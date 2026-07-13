@@ -56,8 +56,20 @@ jobs:
           rm just.tar.gz
           just --version
 
+      # Tailwind's standalone CLI isn't a Go module either (nor Rust) —
+      # same install-and-verify pattern as just above.
+      - name: Install tailwindcss
+        run: |
+          curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.2/tailwindcss-linux-x64
+          echo "5036c4fb4328e0bcdbb6065c70d8ac9452e0d4c947113a788a8f94fd390425c1  tailwindcss" | sha256sum -c -
+          chmod +x tailwindcss
+          sudo mv tailwindcss /usr/local/bin/tailwindcss
+          tailwindcss --help >/dev/null
+
       - name: Generate
         run: |
+          tailwindcss -i internal/web/assets/tailwind/input.css \
+            -o internal/web/assets/static/css/app.css --minify
           templ generate
           sqlc generate
       - name: Verify generation didn't touch tracked files

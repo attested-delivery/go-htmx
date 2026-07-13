@@ -45,6 +45,11 @@ go.work.sum
 # the .sql query files and migrations are the source of truth.
 /internal/platform/db/sqlc/
 
+# Compiled from internal/web/assets/tailwind/input.css by the Tailwind CLI
+# (justfile's `generate` recipe), same reasoning as *_templ.go above — the
+# input.css source is the source of truth, not this build artifact.
+/internal/web/assets/static/css/app.css
+
 # Editor/IDE
 # .idea/
 # .vscode/
