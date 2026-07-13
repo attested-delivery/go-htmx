@@ -25,6 +25,19 @@ go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 ```
 
+[Tailwind CSS](https://tailwindcss.com)'s standalone CLI (v4.3.2 — not a Go
+module, not Node/npm: a single per-platform binary) compiles
+`internal/web/assets/tailwind/input.css` into the embedded stylesheet.
+Install it the same integrity-verified way `.github/workflows/ci.yml` does
+(swap the asset name for your platform; checksums are published in the
+release's `sha256sums.txt`):
+
+```sh
+curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.2/tailwindcss-macos-arm64
+echo "b800b0659dc64b9f03ede5660244d9415d777d5739ae2889280877ca37be742a  tailwindcss" | shasum -a 256 -c -
+chmod +x tailwindcss && sudo mv tailwindcss /usr/local/bin/tailwindcss
+```
+
 `goose` (used only by `just migrate-new`) needs no separate install — the
 recipe invokes it via `go run
 github.com/pressly/goose/v3/cmd/goose@v3.27.2` directly, fetching it on
@@ -39,7 +52,8 @@ The ones that matter day to day:
 
 | Command | What it does |
 | --- | --- |
-| `just generate` | Regenerate `templ` view code and `sqlc` query code. Every other recipe below that touches Go code depends on this — never run `go build`/`go test` directly without it first if you've touched a `.templ` or `internal/platform/db/query/*.sql` file. |
+| `just generate` | Regenerate `templ` view code, `sqlc` query code, and the compiled Tailwind stylesheet. Every other recipe below that touches Go code depends on this — never run `go build`/`go test` directly without it first if you've touched a `.templ`, `internal/platform/db/query/*.sql`, or `internal/web/assets/tailwind/input.css` file. |
+| `just tailwind` | Compile `internal/web/assets/tailwind/input.css` into the embedded stylesheet. Runs automatically as part of `generate` — call directly only to iterate on styles without a full regenerate. |
 | `just build` | `generate`, then build the single self-contained binary to `bin/`. |
 | `just run` | Dev server against on-disk static assets (`-tags dev`) instead of the embedded build — see `internal/web/assets/assets_dev.go`. |
 | `just test` | `generate`, then `go test -race -cover ./...` — the full test triad (AD-8): `httptest` handler tests, in-memory SQLite (`db.Open(":memory:")`), and golden-file snapshots, all in the same run. |

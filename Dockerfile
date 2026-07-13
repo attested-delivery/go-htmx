@@ -10,6 +10,8 @@
 # authoring time -- re-resolve if go.mod's toolchain version changes).
 FROM golang:1.26.5-bookworm@sha256:18aedc16aa19b3fd7ded7245fc14b109e054d65d22ed53c355c899582bbb2113 AS builder
 
+ARG TARGETARCH
+
 WORKDIR /src
 
 # Module download is its own layer so a source-only change doesn't
@@ -19,10 +21,23 @@ RUN go mod download
 
 COPY . .
 
-# templ/sqlc pinned to the exact versions AGENTS.md's Toolchain section
-# documents -- keep both in sync by hand if either changes.
+# templ/sqlc/tailwindcss pinned to the exact versions AGENTS.md's Toolchain
+# section documents -- keep all three in sync by hand if any changes.
+# tailwindcss isn't a Go module, so it's downloaded and checksum-verified
+# directly; TARGETARCH selects the glibc build matching this base image
+# (buildx sets it automatically per --platform leg).
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.1020 && \
     go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 && \
+    case "$TARGETARCH" in \
+      amd64) TW_ASSET=tailwindcss-linux-x64; TW_SHA=5036c4fb4328e0bcdbb6065c70d8ac9452e0d4c947113a788a8f94fd390425c1 ;; \
+      arm64) TW_ASSET=tailwindcss-linux-arm64; TW_SHA=394ddccc2402cfa3abd97dfba56f3587781a3d6e6ce66e65ceada14beb7664b8 ;; \
+      *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac && \
+    curl -sLo /tmp/tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.2/${TW_ASSET}" && \
+    echo "${TW_SHA}  /tmp/tailwindcss" | sha256sum -c - && \
+    chmod +x /tmp/tailwindcss && \
+    /tmp/tailwindcss -i internal/web/assets/tailwind/input.css \
+      -o internal/web/assets/static/css/app.css --minify && \
     templ generate && \
     sqlc generate
 
