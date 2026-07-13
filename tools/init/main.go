@@ -20,13 +20,15 @@
 //     old and new module are github.com paths.
 //   - Binary/cmd name (the cmd/ subdirectory, justfile's build output
 //     path, README title, the templ page title, the default SQLite
-//     filename, narrative comments mentioning the app by name, and
-//     internal/notes/testdata/*.golden's snapshot of the rendered page
-//     title — golden fixtures encode this app's actual rendered output,
-//     so they need the same rewrite or `just test` fails right after
-//     init on a diff that's really just the identity rename working
-//     correctly): read live from the current cmd/ directory's name via
-//     currentCmdName.
+//     filename, the Dockerfile's build target/binary path (Task #52 —
+//     Dockerfile has no extension so it needs its own targetFiles
+//     allowName entry, not just allowExt), narrative comments mentioning
+//     the app by name, and internal/notes/testdata/*.golden's snapshot
+//     of the rendered page title — golden fixtures encode this app's
+//     actual rendered output, so they need the same rewrite or `just
+//     test` fails right after init on a diff that's really just the
+//     identity rename working correctly): read live from the current
+//     cmd/ directory's name via currentCmdName.
 //   - Env var prefix (GO_HTMX_ADDR/ENV/DB_PATH in config.go and
 //     litestream.yml): derived from the binary name via envPrefix
 //     (upper-case, hyphens to underscores) — not a separate input,
@@ -232,7 +234,7 @@ func repoSlug(module string) (slug string, ok bool) {
 // binary files, and .git internals are never touched.
 func targetFiles() ([]string, error) {
 	allowExt := map[string]bool{".go": true, ".templ": true, ".md": true, ".yml": true, ".yaml": true, ".golden": true}
-	allowName := map[string]bool{"justfile": true, "go.mod": true}
+	allowName := map[string]bool{"justfile": true, "go.mod": true, "Dockerfile": true}
 	skipDirs := map[string]bool{".git": true, "bin": true, "sqlc": true}
 
 	var files []string

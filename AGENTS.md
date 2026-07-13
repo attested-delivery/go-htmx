@@ -49,6 +49,7 @@ The ones that matter day to day:
 | `just migrate-new <name>` | Create a new zero-padded goose migration file under `internal/platform/db/migrations/`. Never hand-name a migration file — the numeric prefix must stay zero-padded (see `internal/platform/db/migrations_test.go`'s `TestMigrationFilenamesArePadded`) or migrations silently apply out of order. |
 | `just init <name> <module>` | One-time, run right after copying this template — rewrites the template's own identity into the new project's. See `tools/init/main.go`'s doc comment for exactly what it touches. |
 | `just smoke-init` | The template's real acceptance test: copies the tree, runs `init` with a throwaway identity, builds + tests the copy, grep-gates for leftover identity strings. |
+| `just docker-build` | Build the distroless container image locally (`Dockerfile` at repo root) — no push. Matches what `release.yml`'s `docker` job builds. |
 | `just fmt` | `gofmt` + `templ fmt`. |
 
 ## Layout & package boundaries

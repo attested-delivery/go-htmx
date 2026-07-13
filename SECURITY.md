@@ -54,6 +54,28 @@ This project employs several security practices:
 - **SARIF-normalized scanning**: SAST (CodeQL), SCA (OSV-Scanner), and
   IaC/license (Trivy) findings all land in the repository's Security tab
 
+## Gate Coverage
+
+Disposition against the org's 12-gate map (see the docs site's
+`github-native-attested-quality-gates` spec), so every gap is stated
+explicitly rather than silently absent:
+
+| Gate | Status | Where |
+| --- | --- | --- |
+| SAST | Covered | CodeQL, `quality-gates.yml`'s `sast` job (required check) + re-run and seam-signed at release |
+| SCA / dependency | Covered | OSV-Scanner + dependency review, `quality-gates.yml`'s `sca` job (required check) + re-run and seam-signed at release |
+| Secret detection | Covered | GitHub secret scanning + push protection, enabled (repo setting, confirmed via API) |
+| Container / image scan | Covered | Trivy against the built image, `release.yml`'s `gate-image` job + seam-signed |
+| IaC / misconfiguration | Covered | Trivy filesystem scan, `quality-gates.yml`'s `trivy` job (required check) + re-run and seam-signed at release |
+| License compliance | Covered | Same Trivy job as IaC (`scan-iac: true` covers both) |
+| SBOM | Covered | Binaries: `anchore/sbom-action` + `actions/attest-sbom` at release. Image: `sign-and-attest.yml`'s own SBOM attestation |
+| Vuln disposition (VEX) | **Gap, documented** | Not wired. The org's `reusable-vex.yml` is opt-in; revisit if/when a real finding needs a disposition record, not before |
+| Build provenance (SLSA) | Covered | Binaries: `actions/attest-build-provenance` (L3). Image: `sign-and-attest.yml` (L3, separate signer identity) |
+| Supply-chain posture | Covered | OpenSSF Scorecard, `quality-gates.yml`'s `posture` job (push/schedule only, per Scorecard's own default-branch requirement) |
+| Peer review | **Gap, documented, org-wide** | `requiredApprovingReviewCount: 0` on `main` — confirmed via `get_branch_protection`. This matches the org's current auto-merge pattern across its public repos, not a go-htmx-specific gap; revisit at the org level if that pattern changes |
+| Load / performance | **Not applicable, documented** | Needs a running app to test against; no deployed instance of this template exists to point k6 at. A real deployment's own repo should wire `reusable-k6.yml` against itself |
+| DAST | **Not applicable, documented** | Same reasoning as load/performance — `reusable-zap.yml` needs a running app. Documented opt-in for a real deployment, not this template repo |
+
 ## Verifying Release Artifacts
 
 Every tagged release (`.github/workflows/release.yml`) ships five
@@ -122,3 +144,44 @@ Signed is not the same as passed: each attestation proves the named gate
 *ran and recorded a verdict* against this exact release, not that the
 verdict was clean — inspect the predicate body (e.g. via
 `gh attestation verify --format json`) to read the actual result.
+
+## Verifying the Container Image
+
+Every tagged release also publishes a distroless container image to
+`ghcr.io/attested-delivery/go-htmx`, built from the `Dockerfile` at the
+repo root (`FROM` pinned by digest, not tag — see that file). Unlike the
+binaries above, this is the **image-only** attested path: signed by the
+org's central `sign-and-attest.yml` (a different signer identity from
+the static-artifact path), keyed to the pushed image's digest, not its
+tag:
+
+```sh
+IMAGE="ghcr.io/attested-delivery/go-htmx@<digest>"   # resolve the digest
+                                                       # from the release,
+                                                       # never trust a
+                                                       # mutable tag alone
+SIGNER="attested-delivery/.github/.github/workflows/sign-and-attest.yml"
+
+cosign verify "$IMAGE" \
+  --certificate-identity-regexp "^https://github.com/${SIGNER}@.*$" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+gh attestation verify "oci://$IMAGE" \
+  --repo attested-delivery/go-htmx \
+  --signer-workflow "$SIGNER" \
+  --predicate-type https://slsa.dev/provenance/v1
+
+cosign verify-attestation "$IMAGE" \
+  --type cyclonedx \
+  --certificate-identity-regexp "^https://github.com/${SIGNER}@.*$" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+The image's own Trivy scan verdict is seam-signed and bound to the same
+digest, same "signed != passed" caveat as above:
+
+```sh
+gh attestation verify "oci://$IMAGE" --owner attested-delivery \
+  --signer-workflow attested-delivery/.github/.github/workflows/reusable-attest-scan.yml \
+  --predicate-type https://attested-delivery.github.io/attestations/container-scan/v1
+```
