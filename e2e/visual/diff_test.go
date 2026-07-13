@@ -96,6 +96,66 @@ func TestCompare_BelowThresholdPasses(t *testing.T) {
 	}
 }
 
+// TestCompare_OverlayGrayscaleUsesAllChannels catches a real bug found
+// by Copilot review on PR #86: the overlay's dimmed (matching) pixels
+// were derived from the actual pixel's red channel alone, so a bright
+// green pixel dimmed to near-black instead of a mid-gray, misleadingly
+// suggesting the pixel was dark when it wasn't.
+func TestCompare_OverlayGrayscaleUsesAllChannels(t *testing.T) {
+	dir := t.TempDir()
+
+	// Both images are bright green (R=0) everywhere except pixel (0,0),
+	// which differs (white vs. black) to force Compare's failure path —
+	// Compare only writes the overlay when the diff fraction exceeds
+	// threshold, so a genuine mismatch is needed to exercise it. Pixel
+	// (5,5) stays matching green in both, and is what this test
+	// actually inspects: a red-channel-only grayscale would dim it to
+	// near-black (0/3), even though pure green's luma is ~150/255.
+	green := func(x, y int) color.Color {
+		if x == 0 && y == 0 {
+			return color.White
+		}
+		return color.RGBA{R: 0, G: 255, B: 0, A: 255}
+	}
+	greenWithBlackCorner := func(x, y int) color.Color {
+		if x == 0 && y == 0 {
+			return color.Black
+		}
+		return color.RGBA{R: 0, G: 255, B: 0, A: 255}
+	}
+
+	a := filepath.Join(dir, "a.png")
+	b := filepath.Join(dir, "b.png")
+	writeTestPNG(t, a, green)
+	writeTestPNG(t, b, greenWithBlackCorner)
+
+	diffOut := filepath.Join(dir, "diff.png")
+	if _, err := Compare(a, b, diffOut, 0.001); err == nil {
+		t.Fatal("Compare: want an error (one differing pixel exceeds a 0.1% threshold), got nil")
+	}
+
+	f, err := os.Open(diffOut)
+	if err != nil {
+		t.Fatalf("open diff overlay: %v", err)
+	}
+	defer f.Close()
+	overlay, err := png.Decode(f)
+	if err != nil {
+		t.Fatalf("decode diff overlay: %v", err)
+	}
+
+	r, g, b2, _ := overlay.At(5, 5).RGBA()
+	gray := uint8(r >> 8)
+	if uint8(g>>8) != gray || uint8(b2>>8) != gray {
+		t.Fatalf("overlay pixel isn't neutral gray: R=%d G=%d B=%d", r>>8, g>>8, b2>>8)
+	}
+	// Luma of pure green (0, 255, 0) is 0.587*255 ≈ 150, dimmed by /3 ≈ 50.
+	// A red-channel-only calculation would have produced 0 here.
+	if gray == 0 {
+		t.Error("overlay pixel for a bright green input dimmed to 0 — grayscale is still using only the red channel")
+	}
+}
+
 func TestCompare_DimensionMismatch(t *testing.T) {
 	dir := t.TempDir()
 	white := func(int, int) color.Color { return color.White }

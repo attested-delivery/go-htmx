@@ -77,7 +77,10 @@ func Compare(baselinePath, actualPath, diffOutPath string, threshold float64) (R
 				overlay.Set(x, y, color.RGBA{R: 255, A: 255})
 				continue
 			}
-			gray := uint8(ar >> 8)
+			// Rec. 601 luma, not just the red channel — a matching
+			// pixel that's mostly green/blue would otherwise dim to
+			// near-black and read as much darker than it actually is.
+			gray := uint8(0.299*float64(ar>>8) + 0.587*float64(ag>>8) + 0.114*float64(al>>8))
 			overlay.Set(x, y, color.RGBA{R: gray / 3, G: gray / 3, B: gray / 3, A: 255})
 		}
 	}
