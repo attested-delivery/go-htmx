@@ -18,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T03:59:53.540Z'
+modified: '2026-07-13T11:56:53.492Z'
 ---
 
 # Changelog
@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-07-13
+## [0.1.1] - 2026-07-13
 
 ### Added
 
@@ -84,3 +84,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `quality-gates.yml`'s `sast` job no longer gates on a
   `detect-go-source` check now that real Go source exists; `sast /
   analyze` is a required status check on `main`.
+
+### Fixed
+
+- The container image's SBOM attestation step (`docker-sign`) no
+  longer fails with a permissions error on tagged releases — the
+  upstream `sign-and-attest.yml` reusable was trying to attach the
+  SBOM as a release asset with insufficient permissions
+  (attested-delivery/.github#32).
