@@ -4,9 +4,11 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 default:
     @just --list
 
-# Regenerate templ Go code from .templ sources (AD-3).
+# Regenerate templ Go code from .templ sources (AD-3) and sqlc's
+# database/sql code from internal/platform/db/query/*.sql (Story #3).
 generate:
     templ generate
+    sqlc generate
 
 # Build the single self-contained binary (AD-9). Depends on generate so a
 # stale _templ.go never silently ships.

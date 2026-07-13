@@ -1,0 +1,45 @@
+# Litestream is this template's default durability story (AD-5): it
+# streams WAL frames from the SQLite file (internal/platform/db.Open's
+# path — see GO_HTMX_DB_PATH in internal/platform/config) to object
+# storage continuously, so a lost volume/instance restores from the
+# replica instead of losing everything since the last snapshot. It runs
+# as a sidecar process (`litestream replicate -config litestream.yml`),
+# not a Go dependency — nothing in internal/ imports it.
+#
+# This file ships with a placeholder S3-compatible replica target; every
+# value below is read from the environment so no secret or
+# environment-specific detail is committed. Unset LITESTREAM_* -> the
+# `litestream replicate` process simply has nothing configured to fail
+# over env substitution against and exits with a clear config error,
+# rather than silently running unreplicated.
+dbs:
+  - path: ${GO_HTMX_DB_PATH}
+    replica:
+      type: s3
+      bucket: ${LITESTREAM_S3_BUCKET}
+      path: ${LITESTREAM_S3_PATH}
+      region: ${LITESTREAM_S3_REGION}
+      endpoint: ${LITESTREAM_S3_ENDPOINT}
+
+# --- Escalation paths (AD-5) ---
+#
+# Litestream is a good default because it adds no runtime dependency and
+# keeps the "single SQLite file, single writer" contract (AD-1/AD-2)
+# unchanged — it replicates the WAL out-of-process. Two paths exist for
+# outgrowing it; both are a deliberate architecture change, not a config
+# flag, which is why they're documented here rather than wired in:
+#
+#   - LiteFS (https://fly.io/docs/litefs/): a FUSE filesystem that
+#     replicates SQLite at the page level across multiple read replicas
+#     with leader election, for horizontally-scaled read traffic across
+#     regions/instances. Needs a FUSE-capable host (or Fly.io) and a
+#     consul-compatible lease backend; the app talks to a normal file
+#     path, LiteFS intercepts writes. Reach for this when you need
+#     multiple app instances reading the same data, not just backup.
+#   - libSQL / Turso (https://turso.tech/): a SQLite fork with native
+#     network replication (embedded replicas) and an edge-hosted primary.
+#     Requires swapping the driver import in internal/platform/db/db.go
+#     from modernc.org/sqlite to libSQL's driver — a real code change,
+#     since AD-1 pins modernc.org/sqlite as the default specifically to
+#     stay CGO-free. Reach for this when you want a managed/edge-hosted
+#     primary instead of operating SQLite files yourself.

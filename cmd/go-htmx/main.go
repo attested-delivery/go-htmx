@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/attested-delivery/go-htmx/internal/platform/config"
+	"github.com/attested-delivery/go-htmx/internal/platform/db"
 	"github.com/attested-delivery/go-htmx/internal/platform/httpserver"
 )
 
@@ -32,9 +33,22 @@ func run() error {
 		return err
 	}
 
-	// DB pool wiring (WAL + BEGIN IMMEDIATE + single-writer connection,
-	// AD-1/AD-2) lands here in Story #3 (attested-delivery/go-htmx#15),
-	// threaded through to feature handlers alongside the router below.
+	store, err := db.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("db close failed", "error", err)
+		}
+	}()
+
+	if err := db.Migrate(store.Write); err != nil {
+		return err
+	}
+
+	// store threads through to feature handlers in Story #4, once there
+	// are routes that actually read/write it.
 
 	handler := httpserver.NewRouter(logger)
 	srv := httpserver.New(cfg.Addr, handler)

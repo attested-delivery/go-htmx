@@ -40,6 +40,11 @@ go.work.sum
 *.db-wal
 *.db-shm
 
+# Generated from internal/platform/db/query/*.sql by `sqlc generate`
+# (justfile's `generate` recipe), same reasoning as *_templ.go above —
+# the .sql query files and migrations are the source of truth.
+/internal/platform/db/sqlc/
+
 # Editor/IDE
 # .idea/
 # .vscode/
