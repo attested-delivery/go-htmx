@@ -82,10 +82,12 @@ Every tagged release (`.github/workflows/release.yml`) ships five
 platform binaries (`linux-amd64`, `linux-arm64`, `macos-amd64`,
 `macos-arm64`, `windows-amd64.exe`) plus a `go-htmx-<version>-checksums.txt`
 manifest, named `go-htmx-<version>-<platform>` per the org's release
-naming standard (see `docs/reference/release-artifacts.md`). This is a
-static-artifact release — a plain Go binary, no container image — so
-provenance and the SBOM are produced by GitHub's own attestation actions
+naming standard (see `docs/reference/release-artifacts.md`). This section
+covers that static-artifact path specifically — a plain Go binary, whose
+provenance and SBOM are produced by GitHub's own attestation actions
 running in this repo's `release.yml`, not the org's central image signer.
+The release also ships a container image; see "Verifying the Container
+Image" below for that separate, image-only attested path.
 
 Verification is independent and keyless: no shared secret, just the `gh`
 CLI with read access to this repo.

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,10 +22,53 @@ import (
 )
 
 func main() {
+	// `go-htmx healthcheck` is a separate mode, not a flag: the
+	// Dockerfile's HEALTHCHECK needs an executable to run, but the
+	// distroless base image has no shell, curl, or wget to reach for —
+	// only this binary itself. It probes the running server's own
+	// GET /healthz over loopback and exits 0/1 accordingly; it does not
+	// go through run() at all, so it opens no database connection of its
+	// own.
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := healthcheck(); err != nil {
+			slog.Error("healthcheck failed", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		slog.Error("fatal", "error", err)
 		os.Exit(1)
 	}
+}
+
+// healthcheck probes this same process's own GET /healthz over loopback.
+// cfg.Addr (e.g. ":8080") is a bind address, not a dial target — an empty
+// host means "all interfaces" to a listener but isn't valid to dial, so
+// a bare port is rewritten to 127.0.0.1:<port>.
+func healthcheck() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
+	addr := cfg.Addr
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+
+	client := http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + addr + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("healthz returned " + resp.Status)
+	}
+	return nil
 }
 
 func run() error {
@@ -49,7 +93,7 @@ func run() error {
 		return err
 	}
 
-	mux := httpserver.NewMux()
+	mux := httpserver.NewMux(store.ReadDB())
 
 	notesHandler := notes.NewHandler(
 		sqlc.New(store.ReadDB()),

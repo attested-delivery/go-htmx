@@ -453,9 +453,12 @@ jobs:
   # ---------------------------------------------------------------------
   # Container-image path (Task #52) — build, sign, verify, scan. Follows
   # the org's own established caller pattern (rust-template's
-  # pipeline.yml), not invented fresh. Tag-gated like `release` above; a
-  # workflow_dispatch dry-run builds but never pushes (push: false), so
-  # image-digest is empty and every downstream job here no-ops via `if:`.
+  # pipeline.yml), not invented fresh. Unlike the binary path above
+  # (which exercises build -> attest -> verify on a workflow_dispatch dry
+  # run via its synthetic dev version), this whole chain is tag-gated via
+  # `if: startsWith(github.ref, 'refs/tags/')` on every job below and
+  # does not run at all on a workflow_dispatch dry run — there is no
+  # no-push dry-run mode for the container path.
   # ---------------------------------------------------------------------
   docker:
     needs: meta
@@ -532,8 +535,12 @@ jobs:
 
   # Trivy WITH image-ref set — unlike quality-gates.yml's `trivy` job,
   # which never builds an image and so only ever scans IaC/license.
+  # needs docker-verify, not just docker: scanning (and, downstream,
+  # attesting) an image whose independent provenance verification
+  # hasn't succeeded would break the fail-closed "verify between push
+  # and scan/gate steps" ordering this file's header comment promises.
   gate-image:
-    needs: docker
+    needs: [docker, docker-verify]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: read
@@ -547,7 +554,11 @@ jobs:
       scan-iac: false
 
   attest-container-scan:
-    needs: [docker, gate-image]
+    # docker-verify listed explicitly (not just relied on transitively
+    # through gate-image) so the ordering is legible from this job's own
+    # needs: list, not something a reader has to trace through gate-image
+    # to confirm.
+    needs: [docker, docker-verify, gate-image]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       id-token: write

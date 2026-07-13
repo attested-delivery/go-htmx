@@ -54,4 +54,10 @@ WORKDIR /data
 EXPOSE 8080
 USER 65532:65532
 
+# Distroless has no shell/curl/wget to probe an HTTP endpoint with, so
+# the check runs this same binary in its `healthcheck` mode (see
+# cmd/go-htmx/main.go), not a shell command.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD ["/go-htmx", "healthcheck"]
+
 ENTRYPOINT ["/go-htmx"]
