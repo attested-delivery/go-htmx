@@ -290,8 +290,10 @@ jobs:
       security-events: write
       actions: read
       packages: read
-    # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    # attested-delivery/.github main @ ee1f93b (2026-07-13) — includes
+    # attested-delivery/.github#33's fix for the image job's missing
+    # GHCR auth
+    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       scan-iac: true
 
@@ -549,8 +551,10 @@ jobs:
       security-events: write
       actions: read
       packages: read
-    # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    # attested-delivery/.github main @ ee1f93b (2026-07-13) — includes
+    # attested-delivery/.github#33's fix for the image job's missing
+    # GHCR auth (the actual bug that failed v0.1.1's gate-image job)
+    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       image-ref: ghcr.io/${{ github.repository }}@${{ needs.docker.outputs.image-digest }}
       scan-iac: false
