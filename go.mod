@@ -16,6 +16,7 @@ toolchain go1.26.5
 require (
 	github.com/a-h/templ v0.3.1020
 	github.com/pressly/goose/v3 v3.27.2
+	github.com/sebdah/goldie/v2 v2.8.0
 	modernc.org/sqlite v1.53.0
 )
 
@@ -25,7 +26,9 @@ require (
 	github.com/mattn/go-isatty v0.0.21 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	github.com/sergi/go-diff v1.0.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
