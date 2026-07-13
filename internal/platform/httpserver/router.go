@@ -62,5 +62,6 @@ func Wrap(h http.Handler, logger *slog.Logger) http.Handler {
 	return Chain(h,
 		Recover(logger),
 		Logging(logger),
+		SecurityHeaders(),
 	)
 }

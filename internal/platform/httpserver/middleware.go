@@ -38,6 +38,43 @@ func Logging(logger *slog.Logger) Middleware {
 	}
 }
 
+// SecurityHeaders sets baseline defensive response headers on every
+// request. Scoped to what's real for this template's own example feature
+// — an anonymous, public notes app with no auth/sessions to protect —
+// rather than a general-purpose hardening kitchen sink: no CSRF tokens
+// (nothing session-based to forge on behalf of), no rate limiting (out of
+// scope for "incredibly simple"). See
+// docs/how-to/escalate-beyond-the-defaults.md for what to add if a real
+// consumer project needs those.
+func SecurityHeaders() Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := w.Header()
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("Referrer-Policy", "no-referrer")
+			h.Set("X-Frame-Options", "DENY")
+			// connect-src covers the SSE (EventSource) connection under
+			// CSP's default-src fallback; 'self' is sufficient since
+			// every asset/connection this template makes is same-origin
+			// (htmx and its SSE extension are vendored, not CDN-loaded —
+			// AD-9). Verified empirically (not just by reading the spec)
+			// that a strict 'self' policy with no unsafe-inline/
+			// unsafe-eval breaks two things htmx's declarative attributes
+			// otherwise rely on: hx-on::after:request="this.reset()"
+			// (evaluates its argument via new AsyncFunction — real eval,
+			// CSP-blocked) and the inline style="display:none" attribute
+			// this template used to have. internal/notes/views.templ and
+			// internal/web/assets/static/js/app.js were changed
+			// accordingly: the reset now runs from a real, non-eval'd
+			// addEventListener on htmx's own htmx:afterRequest event, and
+			// the hidden element uses a Tailwind class instead of an
+			// inline style.
+			h.Set("Content-Security-Policy", "default-src 'self'")
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Recover converts a panic in a downstream handler into a 500 response
 // instead of crashing the server.
 func Recover(logger *slog.Logger) Middleware {

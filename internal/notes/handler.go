@@ -58,7 +58,14 @@ func (h *Handler) handlePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxNoteBodyBytes caps the raw request body ParseForm reads, not the
+// note's stored length — a request larger than this is rejected outright
+// rather than trimmed, since a client sending far more than any real note
+// needs is worth treating as abuse, not a valid long note.
+const maxNoteBodyBytes = 4 << 10 // 4 KiB
+
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxNoteBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return

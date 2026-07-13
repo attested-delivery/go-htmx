@@ -99,6 +99,34 @@ func TestHandleCreate(t *testing.T) {
 			t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnprocessableEntity)
 		}
 	})
+
+	// Proves maxNoteBodyBytes is actually enforced, not just declared —
+	// a request one byte over the limit must be rejected outright, and
+	// must not have created a note (the read below would otherwise see
+	// this test's request bleed into a later test's note count, since
+	// mux/h are shared across subtests here).
+	t.Run("oversized body is rejected", func(t *testing.T) {
+		oversized := strings.Repeat("x", maxNoteBodyBytes+1)
+		form := url.Values{"body": {oversized}}
+		req := httptest.NewRequest(http.MethodPost, "/notes", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+		}
+
+		notes, err := h.read.ListNotes(context.Background())
+		if err != nil {
+			t.Fatalf("ListNotes: %v", err)
+		}
+		for _, n := range notes {
+			if len(n.Body) > maxNoteBodyBytes {
+				t.Fatalf("oversized body should not have been persisted, found note with %d bytes", len(n.Body))
+			}
+		}
+	})
 }
 
 // TestHandleStreamSyncAndBroadcast exercises the SSE endpoint end to

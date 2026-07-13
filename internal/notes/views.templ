@@ -37,9 +37,9 @@ templ Page(notes []sqlc.Note) {
 				<p class="text-sm text-gray-500 dark:text-gray-400">Example feature: a live, multi-client notes list over Server-Sent Events (Story #4, AD-4's real-time layer).</p>
 			</header>
 			<form
+				id="note-form"
 				hx-post="/notes"
 				hx-swap="none"
-				hx-on::after:request="this.reset()"
 				class="flex gap-2"
 			>
 				<input
@@ -63,7 +63,7 @@ templ Page(notes []sqlc.Note) {
 				hx-sse:connect="/notes/stream"
 				hx-target="#notes-list"
 				hx-swap="afterbegin"
-				style="display:none"
+				class="hidden"
 			></div>
 			<div id="notes-list" class="space-y-3">
 				for _, n := range notes {
