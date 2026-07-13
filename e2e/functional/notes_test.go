@@ -20,12 +20,12 @@ import (
 
 // newNotesPage starts a real server (e2e/internal/testapp), opens a new
 // page against it, and returns a ready-to-use NotesPage.
-func newNotesPage(t *testing.T, browser playwright.Browser, opts ...playwright.BrowserNewPageOptions) (*pages.NotesPage, string) {
+func newNotesPage(t *testing.T, br playwright.Browser, opts ...playwright.BrowserNewPageOptions) (*pages.NotesPage, string) {
 	t.Helper()
 
 	srv := testapp.New(t)
 
-	page, err := browser.NewPage(opts...)
+	page, err := br.NewPage(opts...)
 	if err != nil {
 		t.Fatalf("NewPage: %v", err)
 	}
@@ -45,8 +45,8 @@ func newNotesPage(t *testing.T, browser playwright.Browser, opts ...playwright.B
 // TestSmoke_CreateNoteAppears is the core flow: create a note, see it
 // appear in the list, see the count badge update. PR-blocking.
 func TestSmoke_CreateNoteAppears(t *testing.T) {
-	browser := browser.NewChromium(t)
-	notes, _ := newNotesPage(t, browser)
+	br := browser.NewChromium(t)
+	notes, _ := newNotesPage(t, br)
 
 	body := fmt.Sprintf("smoke note %d", time.Now().UnixNano())
 	if err := notes.CreateNote(body); err != nil {
@@ -69,8 +69,8 @@ func TestSmoke_CreateNoteAppears(t *testing.T) {
 // regression here means every note submission after the first leaves
 // stale text in the input.
 func TestSmoke_ResetAfterSubmit(t *testing.T) {
-	browser := browser.NewChromium(t)
-	notes, _ := newNotesPage(t, browser)
+	br := browser.NewChromium(t)
+	notes, _ := newNotesPage(t, br)
 
 	if err := notes.CreateNote("this should clear"); err != nil {
 		t.Fatalf("CreateNote: %v", err)
@@ -86,11 +86,11 @@ func TestSmoke_ResetAfterSubmit(t *testing.T) {
 // client that never submitted anything. PR-blocking — this is the
 // feature's core value proposition (AD-4).
 func TestSmoke_MultiClientBroadcast(t *testing.T) {
-	browser := browser.NewChromium(t)
+	br := browser.NewChromium(t)
 
 	srv := testapp.New(t)
 
-	pageA, err := browser.NewPage()
+	pageA, err := br.NewPage()
 	if err != nil {
 		t.Fatalf("NewPage (A): %v", err)
 	}
@@ -104,7 +104,7 @@ func TestSmoke_MultiClientBroadcast(t *testing.T) {
 		t.Fatalf("Goto (A): %v", err)
 	}
 
-	pageB, err := browser.NewPage()
+	pageB, err := br.NewPage()
 	if err != nil {
 		t.Fatalf("NewPage (B): %v", err)
 	}
@@ -134,8 +134,8 @@ func TestSmoke_MultiClientBroadcast(t *testing.T) {
 // is ever created. Full-suite tier only — not part of the PR-blocking
 // smoke subset.
 func TestEmptyBodyRejected(t *testing.T) {
-	browser := browser.NewChromium(t)
-	notes, _ := newNotesPage(t, browser)
+	br := browser.NewChromium(t)
+	notes, _ := newNotesPage(t, br)
 
 	if err := notes.SubmitEmpty(); err != nil {
 		t.Fatalf("SubmitEmpty: %v", err)
@@ -156,8 +156,8 @@ func TestEmptyBodyRejected(t *testing.T) {
 // dark: classes present in markup but visually inert. Full-suite tier
 // only.
 func TestDarkModeRendering(t *testing.T) {
-	browser := browser.NewChromium(t)
-	notes, _ := newNotesPage(t, browser, playwright.BrowserNewPageOptions{
+	br := browser.NewChromium(t)
+	notes, _ := newNotesPage(t, br, playwright.BrowserNewPageOptions{
 		ColorScheme: playwright.ColorSchemeDark,
 	})
 
