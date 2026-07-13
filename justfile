@@ -45,6 +45,21 @@ lint: generate
 # pushing.
 check: build lint test
 
+# Rewrite this template's own identity (module path, binary/cmd name,
+# env-var prefix) into a new project's, in one deterministic, idempotent
+# pass (Story #6, Task #25) — see tools/init/main.go's doc comment for
+# the full identity audit this covers. Run once, right after copying the
+# template via "Use this template".
+init name module:
+    go run ./tools/init {{name}} {{module}}
+
+# The template's real acceptance test (Task #27): copy the tree to a
+# temp dir, run `just init` with a throwaway identity, then build + test
+# the copy, and grep-gate for any leftover template identity string.
+# Proves `just init` actually works end to end, not just that it runs.
+smoke-init:
+    scripts/smoke-init.sh
+
 # Create a new zero-padded migration file (Task #16's padding contract —
 # see internal/platform/db/migrations_test.go's TestMigrationFilenamesArePadded).
 # -s selects goose's sequential (zero-padded numeric) naming over its
