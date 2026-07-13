@@ -23,7 +23,7 @@ import (
 func NewRouter(logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /{$}", handleHome)
+	mux.HandleFunc("GET /{$}", handleHome(logger))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS())))
 
 	return Chain(mux,
@@ -32,9 +32,13 @@ func NewRouter(logger *slog.Logger) http.Handler {
 	)
 }
 
-func handleHome(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = templates.Home().Render(r.Context(), w)
+func handleHome(logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := templates.Home().Render(r.Context(), w); err != nil {
+			logger.Error("render failed", "path", r.URL.Path, "error", err)
+		}
+	}
 }
 
 func staticFS() fs.FS {

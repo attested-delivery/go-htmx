@@ -12,9 +12,10 @@ import (
 type Config struct {
 	// Addr is the address the HTTP server listens on, e.g. ":8080".
 	Addr string
-	// Env selects dev or prod asset-serving behavior (AD-9's build-tag
-	// split handles the compile-time half; this selects the runtime half
-	// where both are compiled in, e.g. for local `go run` without -tags dev).
+	// Env is informational only (logged at startup as "env"). The actual
+	// dev/prod asset-serving split is a compile-time decision made by the
+	// `dev` build tag (see internal/web/assets) — only one implementation
+	// is ever compiled in, so this value doesn't select between them.
 	Env string
 	// DBPath is the SQLite database file path.
 	DBPath string

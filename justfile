@@ -18,13 +18,19 @@ build: generate
 run: generate
     GO_HTMX_ENV=dev go run -tags dev ./cmd/go-htmx
 
-# Run the test suite.
+# Run the test suite. Matches ci.yml's Test step exactly, so a green
+# `just test` means a green CI test step (local/CI parity).
 test: generate
-    go test ./...
+    go test -race -cover ./...
 
 # Lint (golangci-lint; config in .golangci.yml).
 lint: generate
     golangci-lint run ./...
+
+# Run the full CI sequence locally (generate + build + lint + test), so a
+# green `just check` predicts a green ci.yml build-lint-test job before
+# pushing.
+check: build lint test
 
 # Format Go and templ sources.
 fmt:
