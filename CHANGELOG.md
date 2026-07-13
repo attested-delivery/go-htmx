@@ -18,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T13:32:25.740Z'
+modified: '2026-07-13T13:35:35.312Z'
 ---
 
 # Changelog
@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The container image's vulnerability-scan attestation step (`gate-image`)
+- The container image's vulnerability-scan job (`gate-image`)
   no longer fails on tagged releases — the upstream `reusable-trivy.yml`
   reusable never authenticated to GHCR before scanning an image by
   digest, so every one of Trivy's image-source backends failed
