@@ -34,6 +34,13 @@ lint: generate
 # pushing.
 check: build lint test
 
+# Create a new zero-padded migration file (Task #16's padding contract —
+# see internal/platform/db/migrations_test.go's TestMigrationFilenamesArePadded).
+# -s selects goose's sequential (zero-padded numeric) naming over its
+# default timestamp-based naming.
+migrate-new name:
+    go run github.com/pressly/goose/v3/cmd/goose@v3.27.2 -dir internal/platform/db/migrations -s create {{name}} sql
+
 # Format Go and templ sources.
 fmt:
     gofmt -l -w .

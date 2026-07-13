@@ -1,0 +1,109 @@
+package notes
+
+import (
+	"fmt"
+
+	"github.com/attested-delivery/go-htmx/internal/platform/db/sqlc"
+	"github.com/attested-delivery/go-htmx/internal/web/templates"
+)
+
+// Page is the feature's whole page: a create form, a live notes-count
+// badge, and the notes list itself.
+//
+// The SSE connection lives on its own stable, empty #notes-stream
+// element rather than on #notes-list itself. #notes-list is the
+// hx-target unnamed broadcasts swap into (via #notes-stream's
+// hx-target/hx-swap), but it is never itself OOB-replaced — if it were
+// also the connecting element, a full-list OOB refresh of it would
+// detach and reconnect (or outright kill) the very SSE connection
+// delivering that refresh. Keeping the two separate lets
+// handleStream's initial sync message (see handler.go) safely
+// OOB-replace #notes-list's contents without disturbing the connection.
+//
+// This page render and the SSE connection opening are two separate
+// round-trips (render, then the browser parses HTML and opens
+// EventSource) — a note created by another client in that gap would be
+// silently missed if the server only ever pushed incremental updates.
+// handleStream closes that gap by sending a full-state sync fragment
+// (see Sync below) as the first SSE message, before any incremental
+// broadcast — so the list reflects a description of "here's everything
+// as of when your connection actually opened," not "everything from
+// stale page-load".
+templ Page(notes []sqlc.Note) {
+	@templates.Layout("go-htmx — notes") {
+		<h1>Notes</h1>
+		<p>Example feature: a live, multi-client notes list over Server-Sent Events (Story #4, AD-4's real-time layer).</p>
+		<form
+			hx-post="/notes"
+			hx-swap="none"
+			hx-on::after:request="this.reset()"
+		>
+			<input type="text" name="body" placeholder="Write a note…" autocomplete="off" required/>
+			<button type="submit">Add</button>
+		</form>
+		<p>
+			<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(int64(len(notes))) }</span>
+		</p>
+		<div
+			id="notes-stream"
+			hx-sse:connect="/notes/stream"
+			hx-target="#notes-list"
+			hx-swap="afterbegin"
+			style="display:none"
+		></div>
+		<div id="notes-list">
+			for _, n := range notes {
+				@NoteRow(n)
+			}
+		</div>
+	}
+}
+
+// NoteRow renders one note. Used both for the initial page load (inside
+// Page) and, individually, as the primary swap content of an SSE
+// broadcast (inside Broadcast below) — same markup either way, so a
+// freshly created note looks identical to one rendered on first load.
+templ NoteRow(n sqlc.Note) {
+	<div class="note" id={ fmt.Sprintf("note-%d", n.ID) }>
+		<p>{ n.Body }</p>
+		<time>{ n.CreatedAt.Format("2006-01-02 15:04:05") }</time>
+	</div>
+}
+
+// Broadcast is the fragment published to every SSE subscriber on each
+// new note: the note itself (swapped into #notes-list per Page's
+// hx-target/hx-swap="afterbegin") plus an out-of-band-swapped
+// #notes-count update — one SSE message updating two independent
+// regions of the page, the multi-region OOB pattern Story #4/Task #21
+// calls for. htmx's core OOB swap logic (not the SSE extension) is what
+// extracts the hx-swap-oob element and routes it separately; the SSE
+// extension just hands the whole fragment to that same core swap path
+// unnamed messages always use.
+templ Broadcast(n sqlc.Note, count int64) {
+	@NoteRow(n)
+	<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(count) }</span>
+}
+
+// Sync is the first message handleStream sends on every new SSE
+// connection: a full-state OOB refresh of #notes-list (mode
+// "innerHTML" — replaces children, not the element itself, since
+// #notes-list isn't the connecting element) plus the count badge. It
+// closes the page-render-to-SSE-connect gap Page's doc comment
+// describes: whatever handleStream's snapshot query sees becomes the
+// list, superseding anything server-rendered into the initial page
+// load that's now stale.
+templ Sync(notes []sqlc.Note, count int64) {
+	<div id="notes-list" hx-swap-oob="innerHTML">
+		for _, n := range notes {
+			@NoteRow(n)
+		}
+	</div>
+	<span id="notes-count" hx-swap-oob="true">{ noteCountLabel(count) }</span>
+}
+
+func noteCountLabel(count int64) string {
+	if count == 1 {
+		return "1 note"
+	}
+	return fmt.Sprintf("%d notes", count)
+}

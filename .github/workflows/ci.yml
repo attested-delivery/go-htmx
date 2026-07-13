@@ -45,6 +45,20 @@ jobs:
         run: |
           templ generate
           sqlc generate
+      - name: Verify generation didn't touch tracked files
+        # Generated output (_templ.go, internal/platform/db/sqlc/) is
+        # gitignored specifically so it's never a source of drift — this
+        # only catches the failure mode gitignore itself can't: `sqlc
+        # generate`/`templ generate` writing somewhere unexpectedly
+        # untracked-but-not-ignored, or into a path that should have been
+        # gitignored but isn't. `git status --porcelain` exits 0
+        # regardless of output, so the check has to be explicit.
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Generation left an untracked/modified file outside .gitignore:"
+            git status --porcelain
+            exit 1
+          fi
       - name: Build
         run: go build ./...
       - name: Lint
