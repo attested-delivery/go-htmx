@@ -166,19 +166,27 @@ func TestHandleStreamSyncAndBroadcast(t *testing.T) {
 	if !strings.Contains(broadcast, "live note") {
 		t.Fatalf("broadcast missing the live note: %q", broadcast)
 	}
-	// Checked as independent conditions, not one exact adjacent substring
-	// — asserting a fixed attribute order/adjacency makes this brittle
-	// against unrelated markup changes (e.g. adding a class attribute)
-	// that don't affect the actual behavior being tested: the count
-	// badge OOB-updating to the right value.
-	if !strings.Contains(broadcast, `id="notes-count"`) {
-		t.Errorf("broadcast should include the #notes-count element: %q", broadcast)
+	// Scoped to the #notes-count element's own substring (id=... through
+	// its closing tag) rather than checking hx-swap-oob/the count value
+	// as independent conditions anywhere in the whole broadcast — that
+	// would pass even if they applied to unrelated markup, not this
+	// element specifically. Still avoids asserting a fixed attribute
+	// order/adjacency (e.g. class between hx-swap-oob and the count
+	// text), which is what made the original version brittle.
+	idx := strings.Index(broadcast, `id="notes-count"`)
+	if idx == -1 {
+		t.Fatalf("broadcast should include the #notes-count element: %q", broadcast)
 	}
-	if !strings.Contains(broadcast, `hx-swap-oob="true"`) {
-		t.Errorf("broadcast should OOB-swap the count element: %q", broadcast)
+	end := strings.Index(broadcast[idx:], "</span>")
+	if end == -1 {
+		t.Fatalf("broadcast's #notes-count element should close with </span>: %q", broadcast)
 	}
-	if !strings.Contains(broadcast, "2 notes") {
-		t.Errorf("broadcast should OOB-update the count to 2: %q", broadcast)
+	countElement := broadcast[idx : idx+end]
+	if !strings.Contains(countElement, `hx-swap-oob="true"`) {
+		t.Errorf("#notes-count element should OOB-swap: %q", countElement)
+	}
+	if !strings.Contains(countElement, "2 notes") {
+		t.Errorf("#notes-count element should update the count to 2: %q", countElement)
 	}
 }
 
