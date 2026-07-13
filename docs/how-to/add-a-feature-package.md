@@ -5,9 +5,13 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, feature, scaffolding]
 title: "How to add a feature package"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/reference/project-layout.md
+  - type: relates-to
+    target: docs/how-to/style-with-tailwind.md
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -16,7 +20,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:18:21.904Z'
+modified: '2026-07-13T16:46:35.394Z'
 ---
 
 # How to add a feature package
@@ -57,7 +61,11 @@ example.
    and call its `Register(mux)` alongside `notes.NewHandler(...)`'s
    call, following the existing wiring for `notes`.
 
-5. Run `just check`.
+5. Style the scaffolded `.templ` files with Tailwind — see [Style a
+   feature with Tailwind](style-with-tailwind.md) for how the build
+   step picks up a new feature's markup.
+
+6. Run `just check`.
 
 ## Completion
 

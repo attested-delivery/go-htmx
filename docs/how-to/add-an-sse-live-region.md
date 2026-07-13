@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, sse, htmx, real-time]
 title: "How to add an SSE-pushed live region"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/reference/project-layout.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:18:54.076Z'
+modified: '2026-07-13T16:47:52.073Z'
 ---
 
 # How to add an SSE-pushed live region

@@ -5,6 +5,8 @@ created: 2026-07-12T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, deploy, litestream, durability]
 title: "How to deploy with Litestream, and drill a restore"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/reference/release-artifacts.md
@@ -16,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:19:06.534Z'
+modified: '2026-07-13T16:48:01.844Z'
 ---
 
 # How to deploy with Litestream, and drill a restore
