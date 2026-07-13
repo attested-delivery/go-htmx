@@ -49,8 +49,8 @@ E2E tests (`e2e/`, behind the `e2e` build tag so the default
 `go build`/`go vet`/`go test ./...` never touches this tree) use
 [`playwright-go`](https://github.com/mxschmitt/playwright-go), a Go-native
 community binding — genuinely Node-free, same rationale as the Tailwind CLI
-above. `just e2e-install` downloads its browser binaries (Chromium, Firefox)
-via `go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0
+above. `just e2e-install` downloads its browser binaries (Chromium, Firefox,
+WebKit) via `go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0
 install --with-deps`. **Accepted supply-chain gap**: unlike `tailwindcss`/
 `just` above, this download is HTTPS + version-pinned only — playwright-go
 doesn't publish per-asset checksums the way those tools do, so it isn't
@@ -76,9 +76,10 @@ The ones that matter day to day:
 | `just smoke-init` | The template's real acceptance test: copies the tree, runs `init` with a throwaway identity, builds + tests the copy, grep-gates for leftover identity strings. |
 | `just docker-build` | Build the distroless container image locally (`Dockerfile` at repo root) — no push. Matches what `release.yml`'s `docker` job builds. |
 | `just fmt` | `gofmt` + `templ fmt`. |
-| `just e2e-install` | Download Playwright's browser binaries (Chromium, Firefox). Run once before any `e2e-*` recipe below. |
-| `just e2e-smoke` | `build`, then the `Smoke`-tagged E2E subset (`-tags e2e -run Smoke`) — the lean, PR-blocking tier. |
-| `just e2e-full` | `build`, then the full E2E domain set (`-tags e2e`) — functional, accessibility, cross-browser, visual regression. Runs on merge to `main`, not every PR. |
+| `just e2e-install` | Download Playwright's browser binaries (Chromium, Firefox, WebKit). Run once before any `e2e-*` recipe below. |
+| `just e2e-smoke` | `generate`, then the `Smoke`-tagged E2E subset (`-tags e2e -run Smoke`) — the lean, PR-blocking tier. |
+| `just e2e-full` | `generate`, then the full E2E domain set (`-tags e2e`) — functional, accessibility, cross-browser (Chromium/Firefox/WebKit), visual regression. Runs on merge to `main`, not every PR. |
+| `just test-visual-update` | Regenerate visual regression baselines under `e2e/visual/testdata/*.golden.png` after a deliberate rendering change, mirroring `test-golden-update`'s convention. **Review the resulting diff before committing.** |
 
 ## Layout & package boundaries
 

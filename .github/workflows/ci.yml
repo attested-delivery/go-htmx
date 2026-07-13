@@ -149,3 +149,15 @@ jobs:
       - name: E2E full suite
         if: github.event_name == 'push'
         run: just e2e-full
+
+      # Story #81: e2e/visual writes a diff-overlay PNG next to a failing
+      # baseline (e2e/visual/testdata/<name>.diff.png) instead of just a
+      # numeric failure — upload it so a failing run's actual visual
+      # difference is inspectable without reproducing locally.
+      - name: Upload visual regression diffs
+        if: failure() && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-regression-diffs
+          path: e2e/visual/testdata/*.diff.png
+          if-no-files-found: ignore

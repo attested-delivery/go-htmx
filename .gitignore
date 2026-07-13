@@ -50,6 +50,12 @@ go.work.sum
 # input.css source is the source of truth, not this build artifact.
 /internal/web/assets/static/css/app.css
 
+# Visual regression diff overlays (Story #81) — written by
+# e2e/visual/notes_test.go only on a failing comparison, as a debugging
+# aid/CI artifact. The *.golden.png baselines next to them ARE committed
+# (source of truth), so this pattern must stay scoped to *.diff.png only.
+/e2e/visual/testdata/*.diff.png
+
 # Editor/IDE
 # .idea/
 # .vscode/
