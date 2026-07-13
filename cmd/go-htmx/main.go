@@ -14,10 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/attested-delivery/go-htmx/internal/notes"
+	"github.com/attested-delivery/go-htmx/internal/app"
 	"github.com/attested-delivery/go-htmx/internal/platform/config"
 	"github.com/attested-delivery/go-htmx/internal/platform/db"
-	"github.com/attested-delivery/go-htmx/internal/platform/db/sqlc"
 	"github.com/attested-delivery/go-htmx/internal/platform/httpserver"
 )
 
@@ -93,17 +92,7 @@ func run() error {
 		return err
 	}
 
-	mux := httpserver.NewMux(store.ReadDB())
-
-	notesHandler := notes.NewHandler(
-		sqlc.New(store.ReadDB()),
-		sqlc.New(store.WriteDB()),
-		notes.NewBroadcaster(),
-		logger,
-	)
-	notesHandler.Register(mux)
-
-	handler := httpserver.Wrap(mux, logger)
+	handler := app.New(store.ReadDB(), store.WriteDB(), logger)
 	srv := httpserver.New(cfg.Addr, handler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

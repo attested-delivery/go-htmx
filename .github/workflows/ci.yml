@@ -97,3 +97,55 @@ jobs:
         # the tree, run `just init` with a throwaway identity, build +
         # test the copy, grep-gate for leftover template identity.
         run: just smoke-init
+
+  # Browser-driven E2E tests (Story #78, attested-delivery/go-htmx#78) —
+  # a separate job from build-lint-test so a slow/flaky browser download
+  # never blocks the fast unit-test signal. The lean Smoke-tagged subset
+  # blocks every PR; the full domain set (functional, accessibility,
+  # cross-browser, visual regression) runs only on merge to main, matching
+  # the industry-norm lean-PR/full-on-merge split for a project this size.
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+
+      - name: Install just
+        run: |
+          curl -sLo just.tar.gz https://github.com/casey/just/releases/download/1.56.0/just-1.56.0-x86_64-unknown-linux-musl.tar.gz
+          echo "fa2a8ec1015d9df5330941ade12437488fc40d33f9c9f8cd4eb70a26de11b639  just.tar.gz" | sha256sum -c -
+          tar -xzf just.tar.gz just
+          sudo mv just /usr/local/bin/just
+          rm just.tar.gz
+          just --version
+
+      - name: Install tailwindcss
+        run: |
+          curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v4.3.2/tailwindcss-linux-x64
+          echo "5036c4fb4328e0bcdbb6065c70d8ac9452e0d4c947113a788a8f94fd390425c1  tailwindcss" | sha256sum -c -
+          chmod +x tailwindcss
+          sudo mv tailwindcss /usr/local/bin/tailwindcss
+          tailwindcss --help >/dev/null
+
+      # playwright-go's browser-binary download is HTTPS + version-pinned
+      # only, not independently checksum-verified like just/tailwindcss
+      # above — see AGENTS.md's Toolchain section for the accepted gap.
+      - name: Install Playwright browsers
+        run: just e2e-install
+
+      - name: E2E smoke tests
+        run: just e2e-smoke
+
+      - name: E2E full suite
+        if: github.event_name == 'push'
+        run: just e2e-full

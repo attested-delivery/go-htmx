@@ -75,6 +75,24 @@ smoke-init:
 migrate-new name:
     go run github.com/pressly/goose/v3/cmd/goose@v3.27.2 -dir internal/platform/db/migrations -s create {{name}} sql
 
+# Install Playwright's browser binaries (Story #78). Pinned to the same
+# playwright-go version as go.mod so the CLI and the library driver it
+# talks to never drift. This download is HTTPS + version-pinned only — it
+# is NOT independently checksum-verified the way tailwindcss/just are in
+# ci.yml (see AGENTS.md's Toolchain section for the accepted gap).
+e2e-install:
+    go run github.com/mxschmitt/playwright-go/cmd/playwright@v0.6100.0 install --with-deps chromium firefox
+
+# Lean, PR-blocking E2E subset: only tests named "Smoke" (see e2e/smoke_test.go).
+# Requires e2e-install to have been run at least once.
+e2e-smoke: build
+    go test ./e2e/... -run Smoke -tags e2e
+
+# Full E2E domain set (functional, accessibility, cross-browser, visual
+# regression) — runs only on merge to main, not on every PR.
+e2e-full: build
+    go test ./e2e/... -tags e2e
+
 # Build the distroless container image locally (Task #52). Matches what
 # release.yml's `docker` job builds, minus the push — useful to verify a
 # Dockerfile change builds and the app actually serves before pushing.
