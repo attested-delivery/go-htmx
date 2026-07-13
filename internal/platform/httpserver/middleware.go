@@ -65,3 +65,16 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
+
+// Flush implements http.Flusher by delegating to the wrapped
+// ResponseWriter, if it supports flushing. Without this, wrapping a
+// ResponseWriter here would silently break streaming responses (SSE,
+// Story #4's real-time layer): embedding http.ResponseWriter only
+// promotes its own three methods, not Flush, so a handler's
+// `w.(http.Flusher)` type assertion would fail on a *statusRecorder even
+// though the underlying writer supports it.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}

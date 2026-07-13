@@ -17,18 +17,28 @@ linters:
       rules:
         # AD-6 import boundary (see internal/doc.go): platform/web code is
         # infrastructure and must stay leaf-level — it must never import a
-        # feature package. There are no internal/<feature>/* packages yet
-        # (the first lands with Story #4's example feature slice), so this
-        # rule has nothing to catch today; it exists so the first feature
-        # package that violates the boundary fails lint immediately rather
-        # than being caught later in review.
+        # feature package. Feature packages are top-level dirs under
+        # internal/ (internal/<feature>/*, e.g. internal/orders), not
+        # nested under a literal "internal/feature/" path, so this is an
+        # allow list rather than a deny prefix: depguard's `pkg` matching
+        # is prefix-based, and there's no single deny prefix that covers
+        # every current/future internal/<feature>/* without also covering
+        # (and wrongly blocking) internal/platform/* and internal/web/*
+        # themselves. Anything not in this allow list is denied by
+        # default — including the first feature package that gets added
+        # (Story #4's example feature slice), which is the point: it
+        # fails lint immediately rather than being caught later in review.
         platform-no-feature-imports:
           files:
             - "**/internal/platform/**/*.go"
             - "**/internal/web/**/*.go"
-          deny:
-            - pkg: "github.com/attested-delivery/go-htmx/internal/feature"
-              desc: "platform and web packages must not import feature packages — see internal/doc.go's import boundary"
+          allow:
+            - $gostd
+            - github.com/attested-delivery/go-htmx/internal/platform
+            - github.com/attested-delivery/go-htmx/internal/web
+            - github.com/a-h/templ
+            - modernc.org/sqlite
+            - github.com/pressly/goose/v3
   exclusions:
     rules:
       # Generated templ output; templ itself is the source of truth.
