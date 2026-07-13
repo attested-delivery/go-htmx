@@ -61,7 +61,7 @@ func newNotesPage(t *testing.T, browser playwright.Browser, opts ...playwright.B
 		}
 	})
 
-	notes := pages.New(page)
+	notes := pages.NewNotesPage(page)
 	if err := notes.Goto(srv.URL + "/"); err != nil {
 		t.Fatalf("Goto: %v", err)
 	}
@@ -120,8 +120,12 @@ func TestSmoke_MultiClientBroadcast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPage (A): %v", err)
 	}
-	t.Cleanup(func() { _ = pageA.Close() })
-	notesA := pages.New(pageA)
+	t.Cleanup(func() {
+		if err := pageA.Close(); err != nil {
+			t.Errorf("pageA.Close: %v", err)
+		}
+	})
+	notesA := pages.NewNotesPage(pageA)
 	if err := notesA.Goto(srv.URL + "/"); err != nil {
 		t.Fatalf("Goto (A): %v", err)
 	}
@@ -130,8 +134,12 @@ func TestSmoke_MultiClientBroadcast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPage (B): %v", err)
 	}
-	t.Cleanup(func() { _ = pageB.Close() })
-	notesB := pages.New(pageB)
+	t.Cleanup(func() {
+		if err := pageB.Close(); err != nil {
+			t.Errorf("pageB.Close: %v", err)
+		}
+	})
+	notesB := pages.NewNotesPage(pageB)
 	if err := notesB.Goto(srv.URL + "/"); err != nil {
 		t.Fatalf("Goto (B): %v", err)
 	}

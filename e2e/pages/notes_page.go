@@ -4,13 +4,19 @@
 // playwright-go's Page with named methods targeting that feature's stable
 // DOM hooks instead of scattering raw selectors across test files. This
 // file (notes_page.go) is the template: to add E2E coverage for your own
-// feature, copy it to <feature>_page.go, swap in your feature's own
-// stable id="..." hooks (the same convention internal/notes/views.templ
-// establishes), and copy e2e/functional/notes_test.go the same way — see
-// docs/how-to/add-e2e-coverage.md.
+// feature, copy it to <feature>_page.go, rename NotesPage/NewNotesPage to
+// match your feature, swap in your feature's own stable id="..." hooks
+// (the same convention internal/notes/views.templ establishes), and copy
+// e2e/functional/notes_test.go the same way. Constructors are named per
+// page object (NewNotesPage, not New) specifically so more than one page
+// object can coexist in this package without a symbol collision.
 package pages
 
-import "github.com/mxschmitt/playwright-go"
+import (
+	"fmt"
+
+	"github.com/mxschmitt/playwright-go"
+)
 
 // NotesPage wraps the notes feature's page (internal/notes/views.templ):
 // a create form (#note-form), a live count badge (#notes-count), and the
@@ -20,9 +26,9 @@ type NotesPage struct {
 	assertT playwright.PlaywrightAssertions
 }
 
-// New wraps an already-created playwright-go Page. Callers own the
-// Page's lifecycle (creation/close); NotesPage only adds behavior.
-func New(page playwright.Page) *NotesPage {
+// NewNotesPage wraps an already-created playwright-go Page. Callers own
+// the Page's lifecycle (creation/close); NotesPage only adds behavior.
+func NewNotesPage(page playwright.Page) *NotesPage {
 	return &NotesPage{page: page, assertT: playwright.NewPlaywrightAssertions()}
 }
 
@@ -79,9 +85,10 @@ func (p *NotesPage) WaitForNoteVisible(text string) error {
 
 // WaitForInputCleared auto-retries until #note-form's body input reads
 // empty again. This is the regression test for Epic #67's CSP fix
-// (internal/web/assets/static/js/app.js's htmx:afterRequest listener
+// (internal/web/assets/static/js/app.js's htmx:after:request listener
 // replacing hx-on::after:request="this.reset()", which CSP's script-src
-// blocks as an implicit eval) — reverting that fix makes this assertion
+// blocks as an implicit eval) — reverting that fix, or reverting the
+// event name back to the wrong htmx:afterRequest, makes this assertion
 // time out instead of passing, per Story #78's plan verification step.
 func (p *NotesPage) WaitForInputCleared() error {
 	return p.assertT.Locator(p.page.Locator("#note-form input[name=body]")).ToHaveValue("")
@@ -104,6 +111,9 @@ func (p *NotesPage) NoteBackgroundColor() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	color, _ := result.(string)
+	color, ok := result.(string)
+	if !ok {
+		return "", fmt.Errorf("getComputedStyle(el).backgroundColor returned %T, want string", result)
+	}
 	return color, nil
 }
