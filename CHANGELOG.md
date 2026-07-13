@@ -18,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T13:35:35.312Z'
+modified: '2026-07-13T17:19:07.549Z'
 ---
 
 # Changelog
@@ -29,6 +29,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.3] - 2026-07-13
+
+### Added
+
+- Tailwind CSS v4 build pipeline: a standalone, pinned, checksum-verified
+  CLI (no Node/npm), a new `just tailwind` recipe wired into `generate`,
+  and `internal/web/assets/tailwind/input.css` as the styling source of
+  truth. CI and the container build both install and run it.
+- `internal/notes` restyled with Tailwind: card-based notes list, a
+  styled form/button, a pill-shaped count badge, and dark mode via
+  `prefers-color-scheme` — the existing SSE/OOB real-time layer is
+  unchanged.
+- A proportionate security-headers pass: `X-Content-Type-Options`,
+  `Referrer-Policy`, `X-Frame-Options`, and a same-origin
+  `Content-Security-Policy`, plus a 4 KiB request-body size cap on the
+  notes-create endpoint. Scoped deliberately to this example app's real
+  threat model (no auth/sessions) — no CSRF tokens, no rate limiting.
+- A new how-to guide, `docs/how-to/style-with-tailwind.md`, plus
+  supporting reference and explanation updates documenting the styling
+  pipeline and the security-hardening rationale.
+
+### Fixed
+
+- Two Content-Security-Policy compatibility issues surfaced by testing
+  the running app: `hx-on::after:request="this.reset()"` (which
+  evaluates via an implicit `eval`, CSP-blocked) is now a real event
+  listener on htmx's own `htmx:afterRequest` event; an inline
+  `style="display:none"` attribute (also CSP-blocked) now uses a
+  Tailwind utility class instead.
+- Every document under `docs/` was missing the MIF `temporal`
+  frontmatter field required for Level 2 conformance — added across the
+  whole set.
 
 ## [0.1.2] - 2026-07-13
 
