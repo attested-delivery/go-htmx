@@ -54,7 +54,71 @@ This project employs several security practices:
 - **SARIF-normalized scanning**: SAST (CodeQL), SCA (OSV-Scanner), and
   IaC/license (Trivy) findings all land in the repository's Security tab
 
-Container/release artifact signing and attestation verification instructions
-will be added here once this repo ships a release or container pipeline —
-see the org's `attested-delivery/rust-template` `SECURITY.md` for the shape
-that section will take.
+## Verifying Release Artifacts
+
+Every tagged release (`.github/workflows/release.yml`) ships five
+platform binaries (`linux-amd64`, `linux-arm64`, `macos-amd64`,
+`macos-arm64`, `windows-amd64.exe`) plus a `go-htmx-<version>-checksums.txt`
+manifest, named `go-htmx-<version>-<platform>` per the org's release
+naming standard (see `docs/reference/release-artifacts.md`). This is a
+static-artifact release — a plain Go binary, no container image — so
+provenance and the SBOM are produced by GitHub's own attestation actions
+running in this repo's `release.yml`, not the org's central image signer.
+
+Verification is independent and keyless: no shared secret, just the `gh`
+CLI with read access to this repo.
+
+```sh
+gh release download <tag> --repo attested-delivery/go-htmx
+shasum -a 256 -c go-htmx-<version>-checksums.txt
+```
+
+**SLSA provenance** (per binary):
+
+```sh
+gh attestation verify go-htmx-<version>-<platform> \
+  --repo attested-delivery/go-htmx \
+  --signer-workflow attested-delivery/go-htmx/.github/workflows/release.yml \
+  --predicate-type https://slsa.dev/provenance/v1
+```
+
+**CycloneDX SBOM binding** (per binary):
+
+```sh
+gh attestation verify go-htmx-<version>-<platform> \
+  --repo attested-delivery/go-htmx \
+  --signer-workflow attested-delivery/go-htmx/.github/workflows/release.yml \
+  --predicate-type https://cyclonedx.org/bom
+```
+
+## Verifying Quality-Gate Attestations
+
+SAST (CodeQL), SCA (OSV-Scanner), and IaC/license (Trivy) are re-run at
+release time against the exact tagged commit and seam-signed by the org's
+central `reusable-attest-scan.yml`, bound to the sha256 digest of the
+release's own `go-htmx-<version>-checksums.txt` — the one artifact whose
+content (a hash of every shipped binary) identifies this exact release.
+Under SLSA Build L3 the signer identity is the *central signer workflow*,
+not this repo, so verification pins `--owner` + `--signer-workflow`
+together (one signer per command) rather than `--repo`:
+
+```sh
+SEAM=attested-delivery/.github/.github/workflows/reusable-attest-scan.yml
+
+gh attestation verify go-htmx-<version>-checksums.txt --owner attested-delivery \
+  --signer-workflow "$SEAM" \
+  --predicate-type https://attested-delivery.github.io/attestations/sast/v1
+
+gh attestation verify go-htmx-<version>-checksums.txt --owner attested-delivery \
+  --signer-workflow "$SEAM" \
+  --predicate-type https://attested-delivery.github.io/attestations/sca/v1
+
+gh attestation verify go-htmx-<version>-checksums.txt --owner attested-delivery \
+  --signer-workflow "$SEAM" \
+  --predicate-type https://attested-delivery.github.io/attestations/iac-license/v1
+```
+
+Signed is not the same as passed: each attestation proves the named gate
+*ran and recorded a verdict* against this exact release, not that the
+verdict was clean — inspect the predicate body (e.g. via
+`gh attestation verify --format json`) to read the actual result.

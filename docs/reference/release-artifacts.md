@@ -16,7 +16,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T02:30:54.178Z'
+modified: '2026-07-13T02:44:32.610Z'
 ---
 
 # Reference: release artifact naming and verification
@@ -78,7 +78,11 @@ applies to container images only.
 
 ## Status
 
-The naming convention and verification command above are the org
-standard this repo will conform to; the release workflow that actually
-produces signed artifacts under this naming is Story #9's scope and is
-not yet implemented as of this document's writing.
+Implemented: `.github/workflows/release.yml` (Story #9, Tasks #36-39)
+builds the five platform binaries on a `v*` tag push, attests SLSA
+provenance and a CycloneDX SBOM per binary, re-runs the merge-time
+SAST/SCA/IaC gates against the tagged commit and seam-signs their
+verdicts onto the release's checksums manifest, and fails closed via an
+inline `gh attestation verify` before the release is published. See
+`SECURITY.md`'s "Verifying Release Artifacts" / "Verifying Quality-Gate
+Attestations" sections for the exact, copy-pasteable commands.

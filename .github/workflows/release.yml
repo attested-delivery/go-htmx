@@ -1,0 +1,431 @@
+name: release
+
+# Release-time attested pipeline (Story #9, attested-delivery/go-htmx#9,
+# Tasks #36-39). Complements quality-gates.yml (merge-time gates) and
+# ci.yml (build/lint/test) with the release backbone: cross-platform static
+# binaries, SLSA Build L3 provenance, a CycloneDX SBOM, seam-signed gate
+# verdicts bound to the release, and a fail-closed verify before publish.
+#
+# Static-artifact path (org governance CLAUDE.md SS3/SS5 — this app ships a
+# plain Go binary, no container image yet):
+#   - Provenance: actions/attest-build-provenance (NOT sign-and-attest.yml,
+#     which is image-only).
+#   - SBOM: anchore/sbom-action (Syft, CycloneDX) + actions/attest-sbom.
+#   - Merge-time gate verdicts (SAST/SCA/IaC) are RE-RUN here against the
+#     exact tagged commit (a tag is not guaranteed to point at a commit that
+#     was itself gated - the release gauntlet gates itself) and seam-signed
+#     via reusable-attest-scan.yml, bound to the sha256 digest of the
+#     release's checksums manifest - the one artifact whose content (a
+#     hash of every shipped binary) canonically identifies this exact
+#     release. Each binary additionally carries its own SLSA provenance and
+#     is bound into the CycloneDX SBOM by digest.
+#   - Fail-closed verify: reusable-verify-gates.yml expects oci://
+#     subjects by digest, which does not apply to a static artifact, so
+#     verification runs inline via `gh attestation verify` (per governance's
+#     explicit static-artifact carve-out) before the release is published.
+#
+# pin-check (quality-gates.yml) still enforces SHA-pinning on this file on
+# every push/PR; there is no separate pin-check job here.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Resolve version/name at runtime rather than hardcoding either - a tag
+  # push derives the version from the tag; a workflow_dispatch dry-run (no
+  # tag) gets a synthetic dev version so the rest of the pipeline (build,
+  # attest, verify) is exercisable without cutting a real release.
+  meta:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      name: ${{ steps.resolve.outputs.name }}
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - id: resolve
+        run: |
+          set -euo pipefail
+          NAME=$(basename "$(grep -E '^module ' go.mod | awk '{print $2}')")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-dryrun-$(git rev-parse --short=8 HEAD)"
+          fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # Tags are not guaranteed to point at a commit ci.yml already validated -
+  # the release gauntlet gates itself. Preserves the Go ecosystem's
+  # documented release-gate minimum (vet, test); full lint already ran at
+  # merge time in ci.yml/quality-gates.yml.
+  test:
+    needs: meta
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+      - name: Generate
+        run: |
+          templ generate
+          sqlc generate
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -race -cover ./...
+
+  # Cross-platform static binaries. Pure-Go (modernc.org/sqlite): no cgo,
+  # no per-platform runner or QEMU needed - CGO_ENABLED=0 + GOOS/GOARCH
+  # cross-compiles cleanly from a single ubuntu-latest runner. Provenance
+  # is attested per leg, at build time, before any release exists.
+  build:
+    needs: [meta, test]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            platform: linux-amd64
+          - goos: linux
+            goarch: arm64
+            platform: linux-arm64
+          - goos: darwin
+            goarch: amd64
+            platform: macos-amd64
+          - goos: darwin
+            goarch: arm64
+            platform: macos-arm64
+          - goos: windows
+            goarch: amd64
+            platform: windows-amd64.exe
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@v0.3.1020
+      - name: Install sqlc
+        run: go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+      - name: Generate
+        run: |
+          templ generate
+          sqlc generate
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w" \
+            -o "dist/${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-${{ matrix.platform }}" \
+            ./cmd/go-htmx
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  # sha256 manifest over every built binary. Also the canonical single
+  # "release artifact" digest the seam-signed gate verdicts below bind to -
+  # its content (a hash of every shipped binary) identifies this exact
+  # release, so it is a defensible one-digest anchor for a multi-binary
+  # release with no single container image digest.
+  checksums:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum -- * > "${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums.txt"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: checksums
+          path: dist/${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums.txt
+          if-no-files-found: error
+
+  release-digest:
+    needs: [meta, checksums]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: checksums
+          path: dist
+      - id: digest
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          FILE="${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums.txt"
+          echo "digest=sha256:$(sha256sum "$FILE" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+  # CycloneDX SBOM covering every built binary (Syft scans the binaries
+  # directly - most accurate/traceable), bound to each by digest.
+  # upload-artifact/upload-release-assets disabled: this repo's own
+  # SHA-pinned actions/upload-artifact step and the tag-gated release job
+  # are the only paths that publish anything, not the composite action's
+  # own nested steps.
+  sbom:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: dist
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: dist/*
+          sbom-path: sbom.cdx.json
+
+  # Merge-time gates, re-run here against the exact tagged commit so the
+  # release carries its own fresh verdicts rather than reusing evidence
+  # from an earlier, possibly different, quality-gates.yml run.
+  sast:
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+      packages: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-sast-codeql.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      languages: go
+      build-mode: autobuild
+
+  sca:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+      pull-requests: write
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-sca-osv.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      fail-on-severity: high
+
+  # Trivy IaC/license scan doubles as the license gate here: no container
+  # image exists yet for this repo, so there is no image-ref to pass.
+  trivy:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-trivy.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      scan-iac: true
+
+  # The attestation seam: turn each gate's fresh verdict into a signed,
+  # digest-bound in-toto attestation on the release checksums manifest.
+  sast-attest:
+    needs: [meta, release-digest, sast]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
+      subject-digest: ${{ needs.release-digest.outputs.digest }}
+      predicate-type: https://attested-delivery.github.io/attestations/sast/v1
+      predicate-artifact: ${{ needs.sast.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.sast.outputs.sarif-filename }}
+
+  sca-attest:
+    needs: [meta, release-digest, sca]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
+      subject-digest: ${{ needs.release-digest.outputs.digest }}
+      predicate-type: https://attested-delivery.github.io/attestations/sca/v1
+      predicate-artifact: ${{ needs.sca.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.sca.outputs.sarif-filename }}
+
+  iac-attest:
+    needs: [meta, release-digest, trivy]
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    # attested-delivery/.github main @ ca91728 (2026-07-12)
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    with:
+      subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
+      subject-digest: ${{ needs.release-digest.outputs.digest }}
+      predicate-type: https://attested-delivery.github.io/attestations/iac-license/v1
+      predicate-artifact: ${{ needs.trivy.outputs.sarif-artifact }}
+      predicate-filename: ${{ needs.trivy.outputs.sarif-filename }}
+
+  # Fail-closed, independent of the "green" job graph above: re-verify
+  # every attestation with `gh attestation verify` before anything is
+  # published. reusable-verify-gates.yml expects an oci://...@digest
+  # subject, which does not apply to a static binary release, so this runs
+  # the same checks inline per the org's documented static-artifact
+  # carve-out.
+  verify:
+    needs:
+      [meta, build, checksums, release-digest, sbom, sast-attest, sca-attest, iac-attest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NAME: ${{ needs.meta.outputs.name }}
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: checksums
+          path: dist
+
+      - name: Assert the artifact set is complete
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          count=$(find . -maxdepth 1 -type f | wc -l)
+          if [ "$count" -ne 6 ]; then
+            echo "::error::expected 6 release files (5 binaries + checksums), found $count"
+            find . -maxdepth 1 -type f
+            exit 1
+          fi
+
+      - name: Verify checksums match the built binaries
+        working-directory: dist
+        run: sha256sum -c "${NAME}-${VERSION}-checksums.txt"
+
+      - name: Verify per-binary SLSA provenance and SBOM binding
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          for f in "${NAME}-${VERSION}"-*; do
+            case "$f" in *-checksums.txt) continue ;; esac
+            echo "== $f: SLSA provenance =="
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --predicate-type https://slsa.dev/provenance/v1
+            echo "== $f: CycloneDX SBOM binding =="
+            gh attestation verify "$f" --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
+              --predicate-type https://cyclonedx.org/bom
+          done
+
+      # "Signed != passed" (org governance): this step alone only proves an
+      # attestation exists, is validly signed, and came from the expected
+      # signer -- it does not itself re-derive a pass/fail verdict from the
+      # predicate body. That's intentional here, not an omission: sast/sca/
+      # trivy above are `needs:` by sast-attest/sca-attest/iac-attest, which
+      # are in turn `needs:` by this job -- a failing gate job never lets
+      # its -attest job run, so no attestation for a failed gate is ever
+      # created for this workflow to find. A missing attestation (this step
+      # erroring because gh attestation verify found nothing) IS the
+      # verdict-failure signal; there is no "signed but failed" state this
+      # design can reach.
+      - name: Verify seam-signed gate verdicts on the checksums manifest
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          FILE="${NAME}-${VERSION}-checksums.txt"
+          SEAM="attested-delivery/.github/.github/workflows/reusable-attest-scan.yml"
+          for gate in sast sca iac-license; do
+            echo "== $FILE: $gate =="
+            gh attestation verify "$FILE" --owner attested-delivery \
+              --signer-workflow "$SEAM" \
+              --predicate-type "https://attested-delivery.github.io/attestations/${gate}/v1"
+          done
+
+  # Tag-gated: a workflow_dispatch dry-run exercises build -> attest ->
+  # verify end to end but never publishes anything.
+  release:
+    needs: [meta, verify]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: checksums
+          path: dist
+      - uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ needs.meta.outputs.name }} ${{ needs.meta.outputs.version }}
+          files: dist/*
+          generate_release_notes: true
