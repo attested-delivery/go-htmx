@@ -25,6 +25,13 @@ run: generate
 test: generate
     go test -race -cover ./...
 
+# Regenerate golden-file fixtures (AD-8's snapshot tier) after a
+# deliberate rendered-output change. Review the resulting testdata/*.golden
+# diff before committing — an unreviewed -update run is how a real
+# regression gets silently baked in as the new "expected" output.
+test-golden-update: generate
+    go test ./... -run TestGolden -update
+
 # Lint (golangci-lint; config in .golangci.yml).
 lint: generate
     golangci-lint run ./...
