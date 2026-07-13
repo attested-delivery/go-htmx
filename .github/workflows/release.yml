@@ -306,7 +306,7 @@ jobs:
       attestations: write
       contents: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
       subject-digest: ${{ needs.release-digest.outputs.digest }}
@@ -321,7 +321,7 @@ jobs:
       attestations: write
       contents: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
       subject-digest: ${{ needs.release-digest.outputs.digest }}
@@ -336,7 +336,7 @@ jobs:
       attestations: write
       contents: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       subject-name: ${{ needs.meta.outputs.name }}-${{ needs.meta.outputs.version }}-checksums
       subject-digest: ${{ needs.release-digest.outputs.digest }}
@@ -571,7 +571,7 @@ jobs:
       attestations: write
       contents: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/reusable-attest-scan.yml@ee1f93b566abc109efa0588d3d5308b4dd4a7492
     with:
       subject-name: ghcr.io/${{ github.repository }}
       subject-digest: ${{ needs.docker.outputs.image-digest }}
