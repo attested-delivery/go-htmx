@@ -18,7 +18,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T11:56:53.492Z'
+modified: '2026-07-13T13:35:35.312Z'
 ---
 
 # Changelog
@@ -29,6 +29,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.2] - 2026-07-13
+
+### Fixed
+
+- The container image's vulnerability-scan job (`gate-image`)
+  no longer fails on tagged releases — the upstream `reusable-trivy.yml`
+  reusable never authenticated to GHCR before scanning an image by
+  digest, so every one of Trivy's image-source backends failed
+  (attested-delivery/.github#33). `v0.1.1`'s container image is signed
+  with SLSA provenance and an SBOM attestation but is missing this one;
+  `v0.1.2` completes the full attestation set.
 
 ## [0.1.1] - 2026-07-13
 
