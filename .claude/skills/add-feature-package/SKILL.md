@@ -89,7 +89,13 @@ Confirm with the user (if not already given):
    (from `go.mod`'s `module` line) and `<Feature>` with a
    human-readable capitalized form of the feature name.
 
-3. **Create `internal/<feature>/handler_test.go`** (httptest tier, AD-8):
+3. **Create `internal/<feature>/handler_test.go`** (httptest tier, AD-8).
+   Replace `<feature>` and `<Feature>` here the same way as in
+   `views.templ` above — the test's own `strings.Contains(...,
+   "<Feature>")` assertion checks for the literal heading text
+   `views.templ` renders, so if one file's placeholder is replaced and
+   the other isn't, the two diverge and the test fails against its own
+   scaffold:
 
    ```go
    package <feature>

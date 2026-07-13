@@ -14,11 +14,23 @@ file is held to (NFR-7), so keep it accurate as commands change.
 ## Toolchain
 
 Go (current Active LTS — check `go.mod`'s `toolchain` line for the exact
-pinned version), [`just`](https://github.com/casey/just), and network
-access for `go install`/`go run` to fetch pinned tool versions on first
-use (`templ`, `sqlc`, `golangci-lint`, `goose`). No other tools required
-— see `just smoke-init`, which proves a fresh copy needs nothing beyond
-this.
+pinned version) and [`just`](https://github.com/casey/just). The
+`justfile` invokes `templ`, `sqlc`, and `golangci-lint` as plain binaries
+on `PATH`, so install them explicitly first, pinned to the same versions
+`.github/workflows/ci.yml` installs:
+
+```sh
+go install github.com/a-h/templ/cmd/templ@v0.3.1020
+go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+```
+
+`goose` (used only by `just migrate-new`) needs no separate install — the
+recipe invokes it via `go run
+github.com/pressly/goose/v3/cmd/goose@v3.27.2` directly, fetching it on
+first use. No other tools required — see `just smoke-init`, which proves
+a fresh copy needs nothing beyond this plus network access for Go module
+downloads.
 
 ## Commands
 
@@ -78,10 +90,11 @@ comment in `.golangci.yml` for why it's an allow-list, not a deny-list.
 Where a concrete type is meant to satisfy an interface, assert it at
 compile time with `var _ Interface = (*Struct)(nil)` next to the type,
 rather than relying on a caller somewhere to notice a mismatch at usage
-time (or, worse, not noticing until a test fails). A worked example
-already in this codebase: `sqlc generate` (with `emit_interface: true`
-in `sqlc.yaml`) emits exactly this pattern in
-`internal/platform/db/sqlc/querier.go`:
+time (or, worse, not noticing until a test fails). A worked example: run
+`just generate` and `sqlc` (with `emit_interface: true` in `sqlc.yaml`)
+emits exactly this pattern in `internal/platform/db/sqlc/querier.go` — a
+gitignored generated file (see `.gitignore`), so it only exists in your
+tree after generation, not as a file you can find by browsing the repo:
 
 ```go
 type Querier interface {
