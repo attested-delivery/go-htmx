@@ -5,6 +5,8 @@ created: 2026-07-13T00:00:00Z
 namespace: go-htmx/docs/how-to
 tags: [how-to, tailwind, css, styling]
 title: "How to style a feature with Tailwind"
+temporal:
+  validFrom: 2026-07-13T00:00:00Z
 relationships:
   - type: relates-to
     target: docs/how-to/add-a-feature-package.md
@@ -12,8 +14,6 @@ relationships:
     target: docs/reference/project-layout.md
   - type: relates-to
     target: docs/reference/justfile-commands.md
-temporal:
-  validFrom: 2026-07-13T00:00:00Z
 provenance:
   '@type': Provenance
   agent: claude-code/claude-sonnet-5
@@ -22,7 +22,7 @@ provenance:
     '@type': prov:Activity
   trustLevel: user_stated
   agentVersion: 2.1.207
-modified: '2026-07-13T16:43:12.068Z'
+modified: '2026-07-13T16:52:48.061Z'
 ---
 
 # How to style a feature with Tailwind
