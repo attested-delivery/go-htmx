@@ -1,3 +1,26 @@
+---
+id: urn:mif:go-htmx:changelog
+type: episodic
+created: 2026-07-12T00:00:00Z
+namespace: go-htmx
+tags: [changelog, release-history]
+title: "go-htmx Changelog"
+temporal:
+  validFrom: 2026-07-12T00:00:00Z
+relationships:
+  - type: relates-to
+    target: docs/reference/release-artifacts.md
+provenance:
+  '@type': Provenance
+  agent: claude-code/claude-sonnet-5
+  wasGeneratedBy:
+    '@id': urn:mif:activity:claude-code-session:91f08ccf-1fbc-4d5c-843d-9ff6d4050ce8
+    '@type': prov:Activity
+  trustLevel: user_stated
+  agentVersion: 2.1.207
+modified: '2026-07-13T03:43:52.796Z'
+---
+
 # Changelog
 
 All notable changes to this project are documented in this file.
@@ -29,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Template-instantiation tooling: `just init <name> <module>` rewrites
   the template's own identity into a new project's in one deterministic,
   idempotent pass; `just smoke-init` proves it end to end against a
-  throwaway copy.
+  throwaway copy, including a container build.
 - AI-agent conventions: `AGENTS.md` (package boundaries, commands,
   compile-time interface-satisfaction idiom) and a checked-in
   `add-feature-package` scaffolding skill.
@@ -46,14 +69,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   digest-pinned, non-root, ~5 MB), with its own image-only SLSA Build
   L3 signing, independent fail-closed verify, and a seam-signed Trivy
   image-scan verdict.
+- A real `/healthz` endpoint (pings the database, not a stub that
+  always returns 200) and a `go-htmx healthcheck` binary subcommand,
+  wired into the container's `HEALTHCHECK` directive since distroless
+  has no shell to probe an HTTP endpoint with directly.
+- Git hooks (Lefthook): pre-commit auto-formats staged Go and templ
+  files; pre-push runs the same build+lint+test sequence CI's
+  build-lint-test job runs.
 
 ### Changed
 
 - `quality-gates.yml`'s `sast` job no longer gates on a
   `detect-go-source` check now that real Go source exists; `sast /
   analyze` is a required status check on `main`.
-
-## [0.1.0] - Unreleased
-
-First tagged release. See the [Unreleased] section above for its full
-contents; this section is renamed and dated at tag time (Task #43).
