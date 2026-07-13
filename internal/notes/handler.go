@@ -27,8 +27,8 @@ type Handler struct {
 	logger *slog.Logger
 }
 
-// NewHandler builds a Handler. readDB/writeDB should be the *sql.DB
-// pair from db.DB's ReadDB/WriteDB accessors.
+// NewHandler builds a Handler. read/write should wrap db.DB's
+// ReadDB()/WriteDB() pools respectively (e.g. sqlc.New(store.ReadDB())).
 func NewHandler(read, write *sqlc.Queries, bus *Broadcaster, logger *slog.Logger) *Handler {
 	return &Handler{read: read, write: write, bus: bus, logger: logger}
 }
@@ -113,10 +113,45 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
+	// Subscribe before reading the current state: any note created
+	// between this Subscribe and the snapshot query below lands in both
+	// the snapshot and (redundantly, but harmlessly — same id, same
+	// content) a subsequent broadcast, whereas subscribing after the
+	// snapshot could drop a note created in that gap entirely. Given
+	// the choice, an occasional duplicate is fine; a silently missing
+	// note is not.
 	ch, unsubscribe := h.bus.Subscribe()
 	defer unsubscribe()
 
 	ctx := r.Context()
+
+	// Full-state sync as the first message: closes the gap between
+	// handlePage's render and this connection actually opening (a
+	// separate round-trip — the client parses HTML, then opens
+	// EventSource). Without this, a note created by another client in
+	// that window would never reach this client until a manual reload
+	// — see Sync's doc comment in views.templ.
+	list, err := h.read.ListNotes(ctx)
+	if err != nil {
+		h.logger.Error("sync: list notes failed", "error", err)
+		return
+	}
+	count, err := h.read.CountNotes(ctx)
+	if err != nil {
+		h.logger.Error("sync: count notes failed", "error", err)
+		return
+	}
+	var syncBuf strings.Builder
+	if err := Sync(list, count).Render(ctx, &syncBuf); err != nil {
+		h.logger.Error("sync: render failed", "error", err)
+		return
+	}
+	if err := writeSSEEvent(w, syncBuf.String()); err != nil {
+		h.logger.Warn("sse sync write failed, dropping client", "error", err)
+		return
+	}
+	flusher.Flush()
+
 	for {
 		select {
 		case <-ctx.Done():
