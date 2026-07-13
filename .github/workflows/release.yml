@@ -513,8 +513,9 @@ jobs:
       attestations: write
       packages: write
       contents: read
-    # attested-delivery/.github main @ f0c5cba (2026-07-13) — includes #32's
-    # fix for the SBOM step's upload-release-assets 403 on tagged releases
+    # attested-delivery/.github main @ f0c5cba (2026-07-13) — includes
+    # attested-delivery/.github#32's fix for the SBOM step's
+    # upload-release-assets 403 on tagged releases
     uses: attested-delivery/.github/.github/workflows/sign-and-attest.yml@f0c5cba531533a956ce0e4dfd744d398b1b13494
     with:
       image-name: ghcr.io/${{ github.repository }}
