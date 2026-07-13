@@ -7,7 +7,9 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -50,16 +52,30 @@ func (d *DB) ReadDB() *sql.DB { return d.read }
 func (d *DB) WriteDB() *sql.DB { return d.write }
 
 // Open opens path as a WAL-mode SQLite database and returns the
-// Read/Write pool pair described on DB. path may be a plain filesystem
-// path or ":memory:"-style special name understood by modernc.org/sqlite
-// (the in-memory case is what Story #5's test helpers build on).
+// Read/Write pool pair described on DB. path is normally a plain
+// filesystem path; passing ":memory:" opens an in-memory database
+// instead (what Story #5's test helpers build on) — internally rewritten
+// to a per-call shared-cache URI (see dsn) so the read pool's multiple
+// connections and the write pool's single connection all see the same
+// in-memory database, not each their own private, mutually invisible
+// one (SQLite's default ":memory:" behavior is per-connection, which
+// would silently break this package's Read/Write pool split).
 func Open(path string) (*DB, error) {
-	read, err := sql.Open("sqlite", dsn(path, "deferred"))
+	memory := path == ":memory:"
+	if memory {
+		name, err := randomDBName()
+		if err != nil {
+			return nil, fmt.Errorf("db: generate in-memory db name: %w", err)
+		}
+		path = name
+	}
+
+	read, err := sql.Open("sqlite", dsn(path, "deferred", memory))
 	if err != nil {
 		return nil, fmt.Errorf("db: open read pool: %w", err)
 	}
 
-	write, err := sql.Open("sqlite", dsn(path, "immediate"))
+	write, err := sql.Open("sqlite", dsn(path, "immediate", memory))
 	if err != nil {
 		_ = read.Close()
 		return nil, fmt.Errorf("db: open write pool: %w", err)
@@ -73,13 +89,28 @@ func Open(path string) (*DB, error) {
 	// take effect durably for every subsequent connection, but every
 	// connection still needs busy_timeout/foreign_keys applied for
 	// itself — both pools' DSNs already carry those via _pragma, this
-	// just forces WAL on before anything else runs.
+	// just forces WAL on before anything else runs. SQLite doesn't
+	// support WAL for in-memory databases; PRAGMA journal_mode=WAL
+	// against one is a documented no-op (it stays "memory"), not an
+	// error, so this is safe to run unconditionally.
 	if _, err := d.write.Exec("PRAGMA journal_mode=WAL;"); err != nil {
 		_ = d.Close()
 		return nil, fmt.Errorf("db: set WAL mode: %w", err)
 	}
 
 	return d, nil
+}
+
+// randomDBName returns a random hex string suitable as a shared-cache
+// in-memory database name (see dsn) — unique per Open() call so
+// concurrent Open(":memory:") calls (e.g. parallel tests) never
+// collide on the same in-memory database.
+func randomDBName() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return "memdb_" + hex.EncodeToString(b), nil
 }
 
 // Close closes both pools, returning every close error joined together.
@@ -103,11 +134,22 @@ func (d *DB) BeginWrite(ctx context.Context) (*sql.Tx, error) {
 // url.PathEscape, which would also escape "/" and break absolute
 // paths) — without it, a path containing a literal '?' truncates at the
 // wrong point and a path with spaces fails to open.
-func dsn(path, txlock string) string {
+//
+// When memory is true, path is a name (from randomDBName), not a
+// filesystem path, and the DSN adds mode=memory&cache=shared: without
+// cache=shared, each connection opening this same name would get its
+// own private in-memory database, invisible to every other connection
+// — silently breaking the read pool (multiple connections) seeing
+// anything the write pool (a different connection) wrote.
+func dsn(path, txlock string, memory bool) string {
 	q := url.Values{}
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "foreign_keys(ON)")
 	q.Set("_txlock", txlock)
+	if memory {
+		q.Set("mode", "memory")
+		q.Set("cache", "shared")
+	}
 
 	escapedPath := (&url.URL{Path: path}).EscapedPath()
 	return fmt.Sprintf("file:%s?%s", escapedPath, q.Encode())

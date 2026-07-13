@@ -107,3 +107,75 @@ func TestDSNPathEscaping(t *testing.T) {
 	}
 	_ = d.Close()
 }
+
+// TestOpenMemorySharesDataAcrossPools is a regression test for
+// Open(":memory:"): SQLite's default in-memory behavior is one private
+// database per *connection*, which would silently break this package's
+// Read/Write pool split — the read pool's multiple connections would
+// each see their own empty database, invisible to whatever the write
+// pool's single connection wrote. Open rewrites ":memory:" to a
+// per-call shared-cache URI specifically to prevent this; this test
+// forces multiple read connections and confirms they all observe the
+// write pool's data.
+func TestOpenMemorySharesDataAcrossPools(t *testing.T) {
+	d, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	d.ReadDB().SetMaxOpenConns(3)
+
+	if err := Migrate(d.WriteDB()); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if _, err := d.WriteDB().Exec("INSERT INTO notes (body) VALUES (?)", "probe"); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	ctx := context.Background()
+	for i := range 5 {
+		var count int
+		if err := d.ReadDB().QueryRowContext(ctx, "SELECT COUNT(*) FROM notes").Scan(&count); err != nil {
+			t.Fatalf("read %d: %v", i, err)
+		}
+		if count != 1 {
+			t.Fatalf("read %d: expected the write pool's row to be visible (count=1), got %d — read pool connection is isolated from the write pool", i, count)
+		}
+	}
+}
+
+// TestOpenMemoryIsolatedBetweenCalls guards the other half of the same
+// fix: two separate Open(":memory:") calls (e.g. two parallel tests)
+// must NOT share data, even though each internally uses shared-cache
+// mode — shared-cache is scoped to a per-call random name (see
+// randomDBName), not global.
+func TestOpenMemoryIsolatedBetweenCalls(t *testing.T) {
+	d1, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open d1: %v", err)
+	}
+	t.Cleanup(func() { _ = d1.Close() })
+	d2, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("Open d2: %v", err)
+	}
+	t.Cleanup(func() { _ = d2.Close() })
+
+	if err := Migrate(d1.WriteDB()); err != nil {
+		t.Fatalf("migrate d1: %v", err)
+	}
+	if _, err := d1.WriteDB().Exec("INSERT INTO notes (body) VALUES (?)", "only in d1"); err != nil {
+		t.Fatalf("insert into d1: %v", err)
+	}
+
+	if err := Migrate(d2.WriteDB()); err != nil {
+		t.Fatalf("migrate d2 should succeed independently of d1's schema: %v", err)
+	}
+	var count int
+	if err := d2.ReadDB().QueryRowContext(context.Background(), "SELECT COUNT(*) FROM notes").Scan(&count); err != nil {
+		t.Fatalf("read d2: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected d2 isolated from d1, got count=%d", count)
+	}
+}
