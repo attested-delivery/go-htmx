@@ -71,7 +71,7 @@ jobs:
       contents: read
       actions: read
     # attested-delivery/.github main @ ca91728 (2026-07-12)
-    uses: attested-delivery/.github/.github/workflows/reusable-scorecard.yml@ca91728c87beb08742325b4ed4d06fcfb261435b
+    uses: attested-delivery/.github/.github/workflows/reusable-scorecard.yml@78f1933ef020e3d94af848a191297d26e8dc8b4c
 
   # IaC + license — Trivy filesystem scan. No image-ref yet: go-htmx has no
   # Dockerfile/container pipeline at this stage.
